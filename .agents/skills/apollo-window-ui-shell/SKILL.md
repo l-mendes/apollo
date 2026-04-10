@@ -22,11 +22,13 @@ This domain owns the desktop shell that stitches Vue surfaces to native Tauri wi
 - `useWindowShell.ts` is the coordination hub for labels, events, placement, and appearance.
 - `useDesktopCapabilities.ts` handles runtime bootstrap and quit actions; keep it separate from domain-specific commands.
 - Surface components should implement loading, ready, and error states explicitly because those states are part of the documented UI contract.
+- The response window renders a compact chat from shell events; follow-ups from that window must sync back to the app window without exposing composed prompt internals.
+- Response-window follow-ups should clear the composer immediately, show the submitted message and Apollo thinking state, then unlock input only after the provider response is fully synced.
 - Selection window placement depends on cursor monitor resolution and is easy to break on multi-monitor or HiDPI setups.
 
 ## Validation
 
-- Run `npx vitest run tests/unit/useWindowShell.spec.ts tests/unit/FloatingTrayBar.spec.ts tests/unit/HomeSurface.spec.ts`.
+- Run `npx vitest run tests/unit/useWindowShell.spec.ts tests/unit/ResponseWindow.spec.ts tests/unit/FloatingTrayBar.spec.ts tests/unit/HomeSurface.spec.ts`.
 - Run `npm run typecheck`.
 - Run `npm run build` if window-entry composition changes broadly.
 

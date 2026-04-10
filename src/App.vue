@@ -2,6 +2,7 @@
 import { ArrowLeft, History, House, Settings2 } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 
+import { buildChatMessages } from "@/components/chat/chatMessages";
 import HistorySurface from "@/components/surfaces/HistorySurface.vue";
 import HomeSurface from "@/components/surfaces/HomeSurface.vue";
 import SettingsSurface from "@/components/surfaces/SettingsSurface.vue";
@@ -13,6 +14,7 @@ import {
   commandErrorMessage,
   continueConversation,
   createEmptyProviderCatalog,
+  type AnalyzeCaptureResponse,
   type CaptureRegionRequest,
   type InteractionSession,
   listHistory,
@@ -35,6 +37,7 @@ import {
   listenForOcrResult,
   listenForPreviewCancel,
   listenForPreviewConfirm,
+  listenForResponseConversationSync,
   listenForSelectionCancelled,
   listenForSelectionResult,
   listenForShortcutAction,
@@ -44,7 +47,8 @@ import {
   openResponseWindow,
   openSelectionWindow,
   syncAppWindowAppearance,
-  type AppSurface
+  type AppSurface,
+  type ResponseUpdatePayload
 } from "@/composables/useWindowShell";
 import {
   fetchBootstrapSnapshot,
@@ -75,6 +79,7 @@ let unlistenSelectionResult: (() => void) | null = null;
 let unlistenSelectionCancelled: (() => void) | null = null;
 let unlistenPreviewConfirm: (() => void) | null = null;
 let unlistenPreviewCancel: (() => void) | null = null;
+let unlistenResponseConversationSync: (() => void) | null = null;
 
 const activeSurface = computed(() => store.state.shell.activeSurface);
 const versionText = computed(() => store.getters.versionText as string);
@@ -158,9 +163,23 @@ onMounted(async () => {
   unlistenPreviewCancel = await listenForPreviewCancel(() => {
     discardPendingCapture();
   });
+  unlistenResponseConversationSync = await listenForResponseConversationSync(
+    (payload) => {
+      syncResponseConversation(
+        payload.session_id,
+        payload.prompt,
+        payload.response,
+        payload.appended_messages
+      );
+    }
+  );
 
   void loadSystemStatus();
-  void Promise.allSettled([refreshSettings(), refreshProviderCatalog(), refreshHistory()]);
+  void Promise.allSettled([
+    refreshSettings(),
+    refreshProviderCatalog(),
+    refreshHistory()
+  ]);
 });
 
 onBeforeUnmount(() => {
@@ -173,22 +192,8 @@ onBeforeUnmount(() => {
   unlistenSelectionCancelled?.();
   unlistenPreviewConfirm?.();
   unlistenPreviewCancel?.();
+  unlistenResponseConversationSync?.();
 });
-
-watch(
-  () => store.state.analysis.lastResponse,
-  (next) => {
-    if (!next) {
-      return;
-    }
-
-    void openResponseWindow();
-    void emitToResponseWindow({
-      response: next.answer,
-      request_prompt: store.state.analysis.lastPrompt
-    });
-  }
-);
 
 watch(
   () => store.state.history.selectedHistoryId,
@@ -197,7 +202,8 @@ watch(
       store.commit("patchHistoryState", {
         conversationMessages: [],
         conversationError: null,
-        continuePrompt: ""
+        continuePrompt: "",
+        pendingFollowUp: null
       });
       return;
     }
@@ -235,10 +241,12 @@ async function loadSystemStatus() {
 }
 
 function pickModel(providerKind: ProviderKind, preferredModel: string): string {
-  const models =
-    (store.state.settings.providerCatalog[providerKind] ?? []) as ProviderModel[];
+  const models = (store.state.settings.providerCatalog[providerKind] ??
+    []) as ProviderModel[];
 
-  if (models.some((model: ProviderModel) => model.model_key === preferredModel)) {
+  if (
+    models.some((model: ProviderModel) => model.model_key === preferredModel)
+  ) {
     return preferredModel;
   }
 
@@ -301,7 +309,9 @@ async function refreshProviderCatalog() {
 
   try {
     const catalogEntries = await Promise.allSettled(
-      PROVIDER_OPTIONS.map(async ({ kind }) => [kind, await listProviderModelsFor(kind)] as const)
+      PROVIDER_OPTIONS.map(
+        async ({ kind }) => [kind, await listProviderModelsFor(kind)] as const
+      )
     );
     const nextCatalog = createEmptyProviderCatalog();
     let rejectedCount = 0;
@@ -382,9 +392,13 @@ async function refreshConversation(sessionId: string) {
   });
 
   try {
+    const conversationMessages = await loadConversationMessages(sessionId);
+
     store.commit("patchHistoryState", {
-      conversationMessages: await loadConversationMessages(sessionId)
+      conversationMessages
     });
+
+    return conversationMessages;
   } catch (error) {
     store.commit("patchHistoryState", {
       conversationError: commandErrorMessage(
@@ -397,6 +411,88 @@ async function refreshConversation(sessionId: string) {
       conversationLoading: false
     });
   }
+
+  return [];
+}
+
+function mergeConversationMessages(
+  currentMessages: typeof store.state.history.conversationMessages,
+  appendedMessages: typeof store.state.history.conversationMessages
+) {
+  const mergedMessages = [...currentMessages];
+  const knownMessageIds = new Set(currentMessages.map((message) => message.id));
+
+  for (const message of appendedMessages) {
+    if (!knownMessageIds.has(message.id)) {
+      mergedMessages.push(message);
+      knownMessageIds.add(message.id);
+    }
+  }
+
+  return mergedMessages;
+}
+
+function buildResponsePayload(
+  session: InteractionSession,
+  conversationMessages: typeof store.state.history.conversationMessages
+): ResponseUpdatePayload {
+  return {
+    session_id: session.id,
+    provider_kind: session.provider_kind,
+    model_key: session.model_key,
+    display_messages: buildChatMessages(session, conversationMessages),
+    conversation_messages: conversationMessages
+  };
+}
+
+async function syncResponseWindow(
+  session: InteractionSession,
+  conversationMessages: typeof store.state.history.conversationMessages
+) {
+  await openResponseWindow();
+  await emitToResponseWindow(
+    buildResponsePayload(session, conversationMessages)
+  );
+}
+
+function syncResponseConversation(
+  sessionId: string,
+  prompt: string,
+  response: AnalyzeCaptureResponse["response"],
+  appendedMessages: typeof store.state.history.conversationMessages
+) {
+  store.commit("patchHistoryState", {
+    conversationMessages:
+      store.state.history.selectedHistoryId === sessionId
+        ? mergeConversationMessages(
+            store.state.history.conversationMessages,
+            appendedMessages
+          )
+        : store.state.history.conversationMessages,
+    continuePrompt:
+      store.state.history.selectedHistoryId === sessionId
+        ? ""
+        : store.state.history.continuePrompt,
+    pendingFollowUp:
+      store.state.history.selectedHistoryId === sessionId
+        ? null
+        : store.state.history.pendingFollowUp
+  });
+  store.commit("patchHistoryState", {
+    items: store.state.history.items.map((session: InteractionSession) =>
+      session.id === sessionId
+        ? {
+            ...session,
+            source_kind: "ManualText",
+            user_notes: prompt,
+            response_text: response.answer
+          }
+        : session
+    )
+  });
+  store.commit("patchAnalysisState", {
+    lastResponse: response
+  });
 }
 
 async function handleAnalyze() {
@@ -441,9 +537,12 @@ async function handleAnalyze() {
         )
       ],
       selectedHistoryId: result.session.id,
-      continuePrompt: ""
+      continuePrompt: "",
+      pendingFollowUp: null
     });
-    await refreshConversation(result.session.id);
+    const conversationMessages = await refreshConversation(result.session.id);
+
+    await syncResponseWindow(result.session, conversationMessages);
   } catch (error) {
     store.commit("patchAnalysisState", {
       error: commandErrorMessage(
@@ -458,19 +557,22 @@ async function handleAnalyze() {
   }
 }
 
-async function handleContinueConversation() {
+async function handleContinueConversation(promptOverride?: string) {
   const selectedSession = store.state.history.items.find(
     (session: InteractionSession) =>
       session.id === store.state.history.selectedHistoryId
   );
+  const prompt = (promptOverride ?? store.state.history.continuePrompt).trim();
 
-  if (!selectedSession || !store.state.history.continuePrompt.trim()) {
+  if (!selectedSession || !prompt) {
     return;
   }
 
   store.commit("patchHistoryState", {
     continueLoading: true,
-    continueError: null
+    continueError: null,
+    continuePrompt: "",
+    pendingFollowUp: prompt
   });
 
   try {
@@ -478,33 +580,38 @@ async function handleContinueConversation() {
       session_id: selectedSession.id,
       provider_kind: selectedSession.provider_kind,
       model_key: selectedSession.model_key,
-      prompt: store.state.history.continuePrompt.trim(),
+      prompt,
       existing_messages: store.state.history.conversationMessages
     });
+    const updatedConversationMessages = mergeConversationMessages(
+      store.state.history.conversationMessages,
+      result.appended_messages
+    );
+    const updatedSession = {
+      ...selectedSession,
+      source_kind: "ManualText" as const,
+      user_notes:
+        result.appended_messages[0]?.content ?? selectedSession.user_notes,
+      response_text: result.response.answer
+    };
 
     store.commit("patchHistoryState", {
-      conversationMessages: [
-        ...store.state.history.conversationMessages,
-        ...result.appended_messages
-      ],
+      conversationMessages: updatedConversationMessages,
       continuePrompt: "",
+      pendingFollowUp: null,
       items: store.state.history.items.map((session: InteractionSession) =>
-        session.id === selectedSession.id
-          ? {
-              ...session,
-              source_kind: "ManualText",
-              user_notes:
-                result.appended_messages[0]?.content ?? session.user_notes,
-              response_text: result.response.answer
-            }
-          : session
+        session.id === selectedSession.id ? updatedSession : session
       )
     });
     store.commit("patchAnalysisState", {
       lastResponse: result.response
     });
+
+    await syncResponseWindow(updatedSession, updatedConversationMessages);
   } catch (error) {
     store.commit("patchHistoryState", {
+      continuePrompt: prompt,
+      pendingFollowUp: null,
       continueError: commandErrorMessage(
         error,
         "Nao foi possivel continuar a conversa desta sessao."
@@ -668,8 +775,12 @@ function discardPendingCapture() {
 </script>
 
 <template>
-  <div class="apollo-main-shell flex h-screen overflow-hidden bg-apollo-app-shell text-slate-50">
-    <aside class="flex w-60 shrink-0 flex-col border-r border-apollo-app-border bg-apollo-app-sidebar">
+  <div
+    class="apollo-main-shell flex h-screen overflow-hidden bg-apollo-app-shell text-slate-50"
+  >
+    <aside
+      class="flex w-60 shrink-0 flex-col border-r border-apollo-app-border bg-apollo-app-sidebar"
+    >
       <button
         class="flex items-center px-5 py-5 text-apollo-app-muted transition hover:text-white"
         type="button"
@@ -691,23 +802,26 @@ function discardPendingCapture() {
           type="button"
           @click="activateSurface(section.id)"
         >
-          <component
-            :is="section.icon"
-            class="h-5 w-5 shrink-0"
-          />
+          <component :is="section.icon" class="h-5 w-5 shrink-0" />
           {{ section.label }}
         </button>
       </nav>
 
-      <div class="border-t border-apollo-app-border px-5 py-4 text-xs text-apollo-app-muted">
+      <div
+        class="border-t border-apollo-app-border px-5 py-4 text-xs text-apollo-app-muted"
+      >
         {{ versionText }}
       </div>
     </aside>
 
     <main class="min-w-0 flex-1 overflow-y-auto bg-apollo-app-panel">
       <div class="mx-auto max-w-4xl px-10 py-10">
-        <h1 class="text-2xl font-semibold text-white">{{ sectionSummary.title }}</h1>
-        <p class="mt-3 max-w-2xl text-sm leading-6 text-apollo-app-muted">{{ sectionSummary.description }}</p>
+        <h1 class="text-2xl font-semibold text-white">
+          {{ sectionSummary.title }}
+        </h1>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+          {{ sectionSummary.description }}
+        </p>
 
         <div class="mt-8">
           <Transition name="surface-float" mode="out-in">
@@ -721,10 +835,7 @@ function discardPendingCapture() {
               @continue-conversation="handleContinueConversation"
             />
 
-            <SettingsSurface
-              v-else
-              @save="handleSaveSettings"
-            />
+            <SettingsSurface v-else @save="handleSaveSettings" />
           </Transition>
         </div>
       </div>

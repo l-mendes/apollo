@@ -21,13 +21,15 @@ This domain owns how Apollo stores, loads, and presents sessions plus conversati
 
 - `list_history` returns session summaries for the left rail; `load_conversation_messages` feeds the detailed timeline.
 - The selected session card is a summary, not the full conversation. Avoid bloating it with infrastructure details.
+- Chat timeline rendering is shared through `ConversationChat`; map persisted first-turn capture messages back to the visible OCR text instead of showing composed prompt internals.
+- Follow-up UX should optimistically show the submitted user message, clear the composer, show the Apollo thinking state, and only unlock input when continuation finishes.
 - When changing history rendering, update the empty, loading, and error states explicitly; the project documents those UI states as part of the product contract.
 
 ## Validation
 
 - Run `cargo test --manifest-path src-tauri/Cargo.toml persistence_repository`.
 - Run `cargo test --manifest-path src-tauri/Cargo.toml history_contract`.
-- Run `npx vitest run tests/unit/HistorySurface.spec.ts tests/unit/useApolloDesktop.spec.ts`.
+- Run `npx vitest run tests/unit/HistorySurface.spec.ts tests/unit/ResponseWindow.spec.ts tests/unit/chatMessages.spec.ts tests/unit/useApolloDesktop.spec.ts`.
 
 ## References
 

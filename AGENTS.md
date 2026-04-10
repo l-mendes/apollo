@@ -25,6 +25,7 @@ Current main flow:
 - use cases build the prompt from the base configuration, OCR output, user notes, and prior context;
 - the selected provider answers through HTTP or CLI;
 - sessions and messages are persisted in SQLite;
+- the response window presents the captured OCR text and model answer as a compact chat;
 - the UI lets the user review history and continue the conversation with the same session, provider, and model.
 
 ## Stack And Runtime
@@ -58,6 +59,8 @@ Current main flow:
 - The selection overlay must disappear visually before capture so preview images never include borders, backdrop tint, or helper hints.
 - Follow-ups must reuse the original session, provider, and model.
 - Conversation messages must load in creation order.
+- Chat-style conversation surfaces should reuse the shared `ConversationChat` component and keep prompt internals hidden from the user-facing timeline.
+- During follow-up processing, chat surfaces should clear the composer, show the submitted message plus a thinking state, and keep input disabled until the provider response completes.
 
 ## Persistence And Core Data
 

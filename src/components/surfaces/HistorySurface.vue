@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import ConversationChat from "@/components/chat/ConversationChat.vue";
+import { buildChatMessages } from "@/components/chat/chatMessages";
 import {
   providerLabel,
-  type ConversationMessage,
   type InteractionSession
 } from "@/composables/useApolloDesktop";
 import { useApolloStore } from "@/store/apollo";
 
 const emit = defineEmits<{
-  "continue-conversation": [];
+  "continue-conversation": [prompt: string];
 }>();
 
 const store = useApolloStore();
 
 const loading = computed(() => store.state.history.loading);
-const errorText = computed(() => store.getters.historyPanelErrorText as string | null);
+const errorText = computed(
+  () => store.getters.historyPanelErrorText as string | null
+);
 const sessions = computed(() => store.state.history.items);
 const conversationMessages = computed(
   () => store.state.history.conversationMessages
@@ -26,7 +29,11 @@ const conversationLoading = computed(
 const conversationErrorText = computed(
   () => store.state.history.conversationError
 );
+const chatMessages = computed(() =>
+  buildChatMessages(selectedSession.value, conversationMessages.value)
+);
 const continuePrompt = computed(() => store.state.history.continuePrompt);
+const pendingFollowUp = computed(() => store.state.history.pendingFollowUp);
 const continueLoading = computed(() => store.state.history.continueLoading);
 const continueErrorText = computed(() => store.state.history.continueError);
 const selectedSession = computed(
@@ -45,6 +52,17 @@ function updateContinuePrompt(prompt: string) {
   });
 }
 
+function submitFollowUp() {
+  const prompt = continuePrompt.value.trim();
+
+  if (!prompt || continueLoading.value) {
+    return;
+  }
+
+  updateContinuePrompt("");
+  emit("continue-conversation", prompt);
+}
+
 function openHome() {
   store.commit("setActiveSurface", "home");
 }
@@ -59,18 +77,6 @@ function sourceLabel(sourceKind: InteractionSession["source_kind"]): string {
   }
 
   return "Arquivo importado";
-}
-
-function roleLabel(role: ConversationMessage["role"]): string {
-  if (role === "Assistant") {
-    return "Apollo";
-  }
-
-  if (role === "System") {
-    return "Sistema";
-  }
-
-  return "Usuario";
 }
 </script>
 
@@ -96,7 +102,10 @@ function roleLabel(role: ConversationMessage["role"]): string {
     class="rounded-xl border border-dashed border-apollo-app-border bg-apollo-app-card p-6 text-sm text-slate-300"
     data-testid="history-empty"
   >
-    <p>Nenhuma sessao foi registrada ainda. Execute uma analise para começar o historico.</p>
+    <p>
+      Nenhuma sessao foi registrada ainda. Execute uma analise para começar o
+      historico.
+    </p>
     <button
       class="mt-4 rounded-lg border border-apollo-app-border bg-apollo-app-card px-4 py-2 text-sm text-slate-100 transition hover:border-apollo-app-accent hover:text-white"
       type="button"
@@ -131,10 +140,20 @@ function roleLabel(role: ConversationMessage["role"]): string {
         type="button"
         @click="selectSession(session.id)"
       >
-        <p class="text-sm font-semibold">{{ providerLabel(session.provider_kind) }}</p>
-        <p class="mt-1 text-xs text-apollo-app-muted">{{ session.model_key }} · {{ sourceLabel(session.source_kind) }}</p>
-        <p class="mt-2 max-h-10 overflow-hidden text-xs leading-5 text-slate-300">
-          {{ session.response_text ?? session.ocr_text ?? 'Sem conteudo registrado.' }}
+        <p class="text-sm font-semibold">
+          {{ providerLabel(session.provider_kind) }}
+        </p>
+        <p class="mt-1 text-xs text-apollo-app-muted">
+          {{ session.model_key }} · {{ sourceLabel(session.source_kind) }}
+        </p>
+        <p
+          class="mt-2 max-h-10 overflow-hidden text-xs leading-5 text-slate-300"
+        >
+          {{
+            session.response_text ??
+            session.ocr_text ??
+            "Sem conteudo registrado."
+          }}
         </p>
       </button>
     </aside>
@@ -143,9 +162,16 @@ function roleLabel(role: ConversationMessage["role"]): string {
       <template v-if="selectedSession">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">Sessao selecionada</p>
-            <h3 class="mt-2 text-xl font-semibold text-white">{{ providerLabel(selectedSession.provider_kind) }}</h3>
-            <p class="mt-1 text-sm text-apollo-app-muted">{{ selectedSession.model_key }} · {{ sourceLabel(selectedSession.source_kind) }}</p>
+            <p class="text-xs font-medium text-apollo-app-muted uppercase">
+              Sessao selecionada
+            </p>
+            <h3 class="mt-2 text-xl font-semibold text-white">
+              {{ providerLabel(selectedSession.provider_kind) }}
+            </h3>
+            <p class="mt-1 text-sm text-apollo-app-muted">
+              {{ selectedSession.model_key }} ·
+              {{ sourceLabel(selectedSession.source_kind) }}
+            </p>
           </div>
           <button
             class="rounded-lg border border-apollo-app-border bg-apollo-app-card px-4 py-2 text-sm text-slate-100 transition hover:border-apollo-app-accent hover:text-white"
@@ -157,111 +183,91 @@ function roleLabel(role: ConversationMessage["role"]): string {
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
-          <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">OCR</p>
-            <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{{ selectedSession.ocr_text ?? 'Nao houve OCR persistido.' }}</p>
+          <div
+            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
+          >
+            <p class="text-xs font-medium text-apollo-app-muted uppercase">
+              OCR
+            </p>
+            <p
+              class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200"
+            >
+              {{ selectedSession.ocr_text ?? "Nao houve OCR persistido." }}
+            </p>
           </div>
-          <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">Notas</p>
-            <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{{ selectedSession.user_notes ?? 'Sem notas adicionais.' }}</p>
+          <div
+            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
+          >
+            <p class="text-xs font-medium text-apollo-app-muted uppercase">
+              Notas
+            </p>
+            <p
+              class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200"
+            >
+              {{ selectedSession.user_notes ?? "Sem notas adicionais." }}
+            </p>
           </div>
         </div>
 
-        <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
-          <p class="text-xs font-medium text-apollo-app-muted uppercase">Prompt registrado</p>
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
+        >
+          <p class="text-xs font-medium text-apollo-app-muted uppercase">
+            Prompt registrado
+          </p>
           <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-            {{ selectedSession.request_prompt ?? 'O prompt efetivo nao foi encontrado nesta sessao.' }}
+            {{
+              selectedSession.request_prompt ??
+              "O prompt efetivo nao foi encontrado nesta sessao."
+            }}
           </p>
         </div>
 
-        <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
-          <p class="text-xs font-medium text-apollo-app-muted uppercase">Resposta</p>
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
+        >
+          <p class="text-xs font-medium text-apollo-app-muted uppercase">
+            Resposta
+          </p>
           <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-50">
-            {{ selectedSession.response_text ?? 'Sem resposta persistida.' }}
+            {{ selectedSession.response_text ?? "Sem resposta persistida." }}
           </p>
         </div>
 
-        <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
+        >
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-sm font-semibold text-white">Conversa continua</p>
-              <p class="mt-1 text-sm text-apollo-app-muted">Use o historico persistido da sessao para seguir a conversa sem perder contexto.</p>
+              <p class="mt-1 text-sm text-apollo-app-muted">
+                Use o historico persistido da sessao para seguir a conversa sem
+                perder contexto.
+              </p>
             </div>
-            <span class="rounded-lg border border-apollo-app-border bg-apollo-app-shell px-3 py-1 text-xs text-apollo-app-muted">
+            <span
+              class="rounded-lg border border-apollo-app-border bg-apollo-app-shell px-3 py-1 text-xs text-apollo-app-muted"
+            >
               {{ conversationMessages.length }} turnos
             </span>
           </div>
 
-          <div
-            v-if="conversationErrorText"
-            class="mt-4 rounded-lg border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50"
-          >
-            {{ conversationErrorText }}
-          </div>
-
-          <div
-            v-else-if="conversationLoading"
-            class="mt-4 rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm text-slate-200"
-          >
-            Carregando mensagens persistidas da sessao.
-          </div>
-
-          <div
-            v-else
-            class="mt-4 space-y-3"
-          >
-            <div
-              v-if="conversationMessages.length === 0"
-              class="rounded-lg border border-dashed border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm text-slate-300"
-            >
-              Esta sessao ainda nao possui turnos adicionais persistidos.
-            </div>
-
-            <div
-              v-for="message in conversationMessages"
-              :key="message.id"
-              class="rounded-lg border px-4 py-3"
-              :class="
-                message.role === 'Assistant'
-                  ? 'border-emerald-300/20 bg-emerald-300/10'
-                  : message.role === 'System'
-                    ? 'border-apollo-app-border bg-apollo-app-shell'
-                    : 'border-apollo-app-selectedBorder bg-apollo-app-selected'
-              "
-            >
-              <p class="text-xs font-medium text-apollo-app-muted uppercase">{{ roleLabel(message.role) }}</p>
-              <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-50">{{ message.content }}</p>
-            </div>
-          </div>
-
-          <label class="mt-4 grid gap-2 text-sm text-slate-200">
-            <span class="font-medium text-slate-100">Follow-up</span>
-            <textarea
-              data-testid="continue-prompt"
-              class="min-h-28 rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-apollo-app-accent"
-              placeholder="Ex.: aprofunde a nuance, reescreva em tom informal, compare com outra expressao."
-              :value="continuePrompt"
-              @input="updateContinuePrompt(($event.target as HTMLTextAreaElement).value)"
+          <div class="mt-4 min-h-[24rem]">
+            <ConversationChat
+              :messages="chatMessages"
+              :loading="conversationLoading"
+              :error-text="conversationErrorText ?? continueErrorText"
+              :pending-user-message="pendingFollowUp"
+              :composer-value="continuePrompt"
+              :composer-disabled="continueLoading"
+              :composer-loading="continueLoading"
+              composer-placeholder="Ex.: aprofunde a nuance, reescreva em tom informal, compare com outra expressao."
+              composer-submit-label="Continuar conversa"
+              empty-text="Esta sessao ainda nao possui turnos adicionais persistidos."
+              show-composer
+              @update:composer-value="updateContinuePrompt"
+              @submit="submitFollowUp"
             />
-          </label>
-
-          <div
-            v-if="continueErrorText"
-            class="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-          >
-            {{ continueErrorText }}
-          </div>
-
-          <div class="mt-4 flex justify-end">
-            <button
-              data-testid="continue-button"
-              class="rounded-lg bg-apollo-app-accent px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-apollo-app-hover disabled:text-slate-400"
-              type="button"
-              :disabled="continueLoading || !continuePrompt.trim()"
-              @click="emit('continue-conversation')"
-            >
-              {{ continueLoading ? 'Continuando...' : 'Continuar conversa' }}
-            </button>
           </div>
         </div>
       </template>

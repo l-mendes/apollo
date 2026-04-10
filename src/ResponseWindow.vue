@@ -1,24 +1,72 @@
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
+import ConversationChat from "@/components/chat/ConversationChat.vue";
+import type { ChatMessage } from "@/components/chat/chat.types";
 import {
+  commandErrorMessage,
+  continueConversation,
+  providerLabel,
+  type ConversationMessage,
+  type ProviderKind
+} from "@/composables/useApolloDesktop";
+import {
+  emitResponseConversationSync,
   listenForResponseUpdate,
   type ResponseUpdatePayload
 } from "@/composables/useWindowShell";
 
-const response = ref("");
-const requestPrompt = ref("");
+const sessionId = ref<string | null>(null);
+const providerKind = ref<ProviderKind | null>(null);
+const modelKey = ref("");
+const messages = ref<ChatMessage[]>([]);
+const conversationMessages = ref<ConversationMessage[]>([]);
+const continuePrompt = ref("");
+const continueLoading = ref(false);
+const continueError = ref<string | null>(null);
+const pendingFollowUp = ref<string | null>(null);
 
 let unlistenResponse: (() => void) | null = null;
 
+const providerText = computed(() => {
+  if (!providerKind.value || !modelKey.value) {
+    return "Sem conversa ativa";
+  }
+
+  return `${providerLabel(providerKind.value)} · ${modelKey.value}`;
+});
+
+function syncFromPayload(payload: ResponseUpdatePayload) {
+  sessionId.value = payload.session_id;
+  providerKind.value = payload.provider_kind;
+  modelKey.value = payload.model_key;
+  messages.value = payload.display_messages.map((message) => ({ ...message }));
+  conversationMessages.value = payload.conversation_messages.map((message) => ({
+    ...message
+  }));
+  continuePrompt.value = "";
+  continueLoading.value = false;
+  continueError.value = null;
+  pendingFollowUp.value = null;
+}
+
+function mapConversationRole(
+  role: ConversationMessage["role"]
+): ChatMessage["role"] {
+  if (role === "Assistant") {
+    return "assistant";
+  }
+
+  if (role === "System") {
+    return "system";
+  }
+
+  return "user";
+}
+
 onMounted(async () => {
-  unlistenResponse = await listenForResponseUpdate(
-    (payload: ResponseUpdatePayload) => {
-      response.value = payload.response;
-      requestPrompt.value = payload.request_prompt;
-    }
-  );
+  unlistenResponse = await listenForResponseUpdate(syncFromPayload);
 });
 
 onBeforeUnmount(() => {
@@ -33,6 +81,63 @@ async function closeWindow() {
     // noop in web mode
   }
 }
+
+async function submitFollowUp() {
+  const prompt = continuePrompt.value.trim();
+
+  if (
+    !prompt ||
+    continueLoading.value ||
+    !sessionId.value ||
+    !providerKind.value ||
+    !modelKey.value
+  ) {
+    return;
+  }
+
+  continueLoading.value = true;
+  continueError.value = null;
+  pendingFollowUp.value = prompt;
+  continuePrompt.value = "";
+
+  try {
+    const result = await continueConversation({
+      session_id: sessionId.value,
+      provider_kind: providerKind.value,
+      model_key: modelKey.value,
+      prompt,
+      existing_messages: conversationMessages.value
+    });
+    const appendedDisplayMessages = result.appended_messages.map((message) => ({
+      id: message.id,
+      role: mapConversationRole(message.role),
+      content: message.content
+    }));
+
+    conversationMessages.value = [
+      ...conversationMessages.value,
+      ...result.appended_messages
+    ];
+    messages.value = [...messages.value, ...appendedDisplayMessages];
+    pendingFollowUp.value = null;
+
+    await emitResponseConversationSync({
+      session_id: sessionId.value,
+      prompt,
+      response: result.response,
+      appended_messages: result.appended_messages
+    });
+  } catch (error) {
+    pendingFollowUp.value = null;
+    continuePrompt.value = prompt;
+    continueError.value = commandErrorMessage(
+      error,
+      "Nao foi possivel continuar a conversa nesta janela."
+    );
+  } finally {
+    continueLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -44,12 +149,15 @@ async function closeWindow() {
       class="flex shrink-0 items-center justify-between border-b border-apollo-app-border px-4 py-3"
       data-tauri-drag-region
     >
-      <p
-        class="text-sm font-semibold text-white"
-        data-tauri-drag-region
-      >
-        Resposta do Apollo
-      </p>
+      <div data-tauri-drag-region>
+        <p class="text-sm font-semibold text-white" data-tauri-drag-region>
+          Chat do Apollo
+        </p>
+        <p class="mt-0.5 text-xs text-apollo-app-muted" data-tauri-drag-region>
+          {{ providerText }}
+        </p>
+      </div>
+
       <button
         class="rounded-lg p-1 text-apollo-app-muted transition hover:bg-apollo-app-hover hover:text-white"
         type="button"
@@ -59,26 +167,21 @@ async function closeWindow() {
       </button>
     </div>
 
-    <div class="flex-1 space-y-5 overflow-y-auto p-4">
-      <div v-if="!response" class="pt-8 text-center">
-        <p class="text-sm text-apollo-app-muted">
-          Aguardando resposta da analise.
-        </p>
-      </div>
-
-      <div v-if="requestPrompt">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-apollo-app-muted">
-          Prompt enviado
-        </p>
-        <p class="whitespace-pre-wrap text-sm leading-6 text-apollo-app-subtle">{{ requestPrompt }}</p>
-      </div>
-
-      <div v-if="response">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-apollo-app-muted">
-          Resposta
-        </p>
-        <p class="whitespace-pre-wrap text-sm leading-6 text-slate-200">{{ response }}</p>
-      </div>
+    <div class="min-h-0 flex-1 p-4">
+      <ConversationChat
+        :messages="messages"
+        :error-text="continueError"
+        :pending-user-message="pendingFollowUp"
+        :composer-value="continuePrompt"
+        :composer-disabled="continueLoading || !sessionId"
+        :composer-loading="continueLoading"
+        composer-placeholder="Continue a conversa a partir desta resposta..."
+        composer-submit-label="Enviar mensagem"
+        empty-text="Aguardando a primeira resposta da analise."
+        show-composer
+        @update:composer-value="continuePrompt = $event"
+        @submit="submitFollowUp"
+      />
     </div>
   </div>
 </template>

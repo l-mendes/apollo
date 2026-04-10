@@ -48,6 +48,7 @@ export interface ApolloHistoryState {
   conversationLoading: boolean;
   conversationError: string | null;
   continuePrompt: string;
+  pendingFollowUp: string | null;
   continueLoading: boolean;
   continueError: string | null;
 }
@@ -96,6 +97,7 @@ function createInitialState(): ApolloStoreState {
       conversationLoading: false,
       conversationError: null,
       continuePrompt: "",
+      pendingFollowUp: null,
       continueLoading: false,
       continueError: null
     },
@@ -117,7 +119,10 @@ function hasUnsavedSettings(state: ApolloStoreState): boolean {
     return false;
   }
 
-  return JSON.stringify(state.settings.saved) !== JSON.stringify(state.settings.draft);
+  return (
+    JSON.stringify(state.settings.saved) !==
+    JSON.stringify(state.settings.draft)
+  );
 }
 
 function selectedSession(state: ApolloStoreState): InteractionSession | null {

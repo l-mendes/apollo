@@ -8,7 +8,12 @@ import {
   monitorFromPoint
 } from "@tauri-apps/api/window";
 
-import type { SurfaceId } from "@/composables/useApolloDesktop";
+import type {
+  ConversationMessage,
+  NormalizedResponse,
+  ProviderKind,
+  SurfaceId
+} from "@/composables/useApolloDesktop";
 
 export const TRAY_WINDOW_LABEL = "tray";
 export const APP_WINDOW_LABEL = "app";
@@ -151,7 +156,8 @@ async function placeSelectionWindowOnCursorMonitor(
       return;
     }
 
-    const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
+    const { PhysicalPosition, PhysicalSize } =
+      await import("@tauri-apps/api/dpi");
 
     await window.setPosition(
       new PhysicalPosition(placement.physicalX, placement.physicalY)
@@ -337,6 +343,8 @@ export const SELECTION_CANCELLED_EVENT = "apollo:selection-cancelled";
 export const PREVIEW_CONFIRM_EVENT = "apollo:preview-confirm";
 export const PREVIEW_CANCEL_EVENT = "apollo:preview-cancel";
 export const PREVIEW_ANALYSIS_STATUS_EVENT = "apollo:preview-analysis-status";
+export const RESPONSE_CONVERSATION_SYNC_EVENT =
+  "apollo:response-conversation-sync";
 
 export interface PreviewUpdatePayload {
   image_data_url: string | null;
@@ -376,8 +384,22 @@ export interface PreviewAnalysisStatusPayload {
 }
 
 export interface ResponseUpdatePayload {
-  response: string;
-  request_prompt: string;
+  session_id: string;
+  provider_kind: ProviderKind;
+  model_key: string;
+  display_messages: Array<{
+    id: string;
+    role: "assistant" | "system" | "user";
+    content: string;
+  }>;
+  conversation_messages: ConversationMessage[];
+}
+
+export interface ResponseConversationSyncPayload {
+  session_id: string;
+  prompt: string;
+  response: NormalizedResponse;
+  appended_messages: ConversationMessage[];
 }
 
 export async function openPreviewWindow(): Promise<void> {
@@ -592,6 +614,33 @@ export async function listenForResponseUpdate(
   try {
     return await getCurrentWindow().listen<ResponseUpdatePayload>(
       RESPONSE_UPDATE_EVENT,
+      ({ payload }) => handler(payload)
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function emitResponseConversationSync(
+  payload: ResponseConversationSyncPayload
+): Promise<void> {
+  try {
+    await getCurrentWindow().emitTo(
+      APP_WINDOW_LABEL,
+      RESPONSE_CONVERSATION_SYNC_EVENT,
+      payload
+    );
+  } catch {
+    // noop in web mode
+  }
+}
+
+export async function listenForResponseConversationSync(
+  handler: (payload: ResponseConversationSyncPayload) => void
+): Promise<Unlisten> {
+  try {
+    return await getCurrentWindow().listen<ResponseConversationSyncPayload>(
+      RESPONSE_CONVERSATION_SYNC_EVENT,
       ({ payload }) => handler(payload)
     );
   } catch {

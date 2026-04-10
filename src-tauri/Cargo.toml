@@ -1,0 +1,32 @@
+[package]
+name = "apollo-desktop"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Apollo Maintainers"]
+default-run = "apollo-desktop"
+
+[lib]
+name = "apollo_desktop"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.1", features = [] }
+
+[dependencies]
+async-trait = "0.1.89"
+base64 = "0.22"
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.37.0", features = ["bundled"] }
+screenshots = "0.8"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+tauri = { version = "2.10.3", features = [] }
+tauri-plugin-global-shortcut = "2"
+thiserror = "2.0.17"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.23.0"

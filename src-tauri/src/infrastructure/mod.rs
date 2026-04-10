@@ -1,0 +1,10 @@
+pub mod capture;
+pub mod database;
+pub mod logging;
+pub mod migrations;
+pub mod ocr;
+pub mod paths;
+pub mod persistence;
+pub mod provider_catalog;
+pub mod provider_registry;
+pub mod providers;

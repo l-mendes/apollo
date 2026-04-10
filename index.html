@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Apollo</title>
+  </head>
+  <body>
+    <script>
+      // Apply the window kind to <body> as early as possible so the right
+      // background variant kicks in before Vue mounts. This avoids a flash of
+      // opaque slate behind transparent overlays (selection / preview / etc).
+      (function () {
+        try {
+          var hint = new URL(window.location.href).searchParams.get("window");
+          if (hint) {
+            document.documentElement.dataset.window = hint;
+            document.body.dataset.window = hint;
+          }
+        } catch (_err) {}
+      })();
+    </script>
+    <div id="app"></div>
+    <script
+      type="module"
+      src="/src/main.ts"
+    ></script>
+  </body>
+</html>

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Apollo",
+  "version": "0.1.0",
+  "identifier": "com.apollo.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "tray",
+        "title": "Apollo Utility",
+        "url": "index.html?window=tray",
+        "width": 300,
+        "minWidth": 300,
+        "maxWidth": 300,
+        "height": 48,
+        "minHeight": 48,
+        "maxHeight": 48,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true,
+        "center": true
+      },
+      {
+        "label": "app",
+        "title": "Apollo",
+        "url": "index.html?window=app",
+        "width": 800,
+        "height": 640,
+        "minWidth": 800,
+        "minHeight": 640,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "visible": false,
+        "center": true
+      },
+      {
+        "label": "preview",
+        "title": "Apollo Preview",
+        "url": "index.html?window=preview",
+        "width": 380,
+        "height": 520,
+        "minWidth": 320,
+        "minHeight": 360,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false,
+        "x": 24,
+        "y": 24
+      },
+      {
+        "label": "response",
+        "title": "Apollo Response",
+        "url": "index.html?window=response",
+        "width": 480,
+        "height": 560,
+        "minWidth": 360,
+        "minHeight": 400,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ]
+  }
+}

@@ -9,7 +9,7 @@ use crate::{
     },
     domain::entities::shortcut_binding::ShortcutBinding,
     infrastructure::capture::{
-        capture_screen_region_sync, CaptureRegionCoordinates, XCapCapturePort,
+        CaptureRegionCoordinates, XCapCapturePort, capture_screen_region_sync,
     },
 };
 
@@ -62,14 +62,14 @@ pub async fn capture_screen_region(
     let coordinates = CaptureRegionCoordinates::from(request);
 
     let (image_path, captured_width, captured_height, data_url) =
-        tauri::async_runtime::spawn_blocking(move || {
-            capture_screen_region_sync(coordinates)
-        })
-        .await
-        .map_err(|e| ApplicationError::new(
-            ApplicationErrorKind::Unavailable,
-            format!("region capture task panicked: {e}"),
-        ))??;
+        tauri::async_runtime::spawn_blocking(move || capture_screen_region_sync(coordinates))
+            .await
+            .map_err(|e| {
+                ApplicationError::new(
+                    ApplicationErrorKind::Unavailable,
+                    format!("region capture task panicked: {e}"),
+                )
+            })??;
 
     Ok(CaptureRegionResponse {
         image_path,
@@ -87,19 +87,19 @@ pub struct OcrFromImageRequest {
 
 /// Run OCR over a previously captured image saved on disk.
 #[tauri::command]
-pub async fn run_ocr_on_image(
-    request: OcrFromImageRequest,
-) -> Result<String, ApplicationError> {
+pub async fn run_ocr_on_image(request: OcrFromImageRequest) -> Result<String, ApplicationError> {
     let path = request.image_path;
     let lang = request.ocr_language;
     let text = tauri::async_runtime::spawn_blocking(move || {
         crate::infrastructure::capture::extract_text_sync(&path, &lang)
     })
     .await
-    .map_err(|e| ApplicationError::new(
-        ApplicationErrorKind::Unavailable,
-        format!("ocr task panicked: {e}"),
-    ))??;
+    .map_err(|e| {
+        ApplicationError::new(
+            ApplicationErrorKind::Unavailable,
+            format!("ocr task panicked: {e}"),
+        )
+    })??;
 
     Ok(text)
 }
@@ -136,12 +136,12 @@ pub async fn apply_global_shortcuts(
 ) -> Result<(), ApplicationError> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-    app.global_shortcut()
-        .unregister_all()
-        .map_err(|e| ApplicationError::new(
+    app.global_shortcut().unregister_all().map_err(|e| {
+        ApplicationError::new(
             ApplicationErrorKind::InvalidConfiguration,
             format!("failed to unregister shortcuts: {e}"),
-        ))?;
+        )
+    })?;
 
     for binding in shortcuts.iter().filter(|b| b.enabled) {
         if let Err(e) = app.global_shortcut().register(binding.accelerator.as_str()) {

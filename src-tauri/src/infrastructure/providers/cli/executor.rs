@@ -8,14 +8,24 @@ use crate::{
         errors::{ApplicationError, ApplicationErrorKind},
         ports::provider::CliProviderExecutor,
     },
-    domain::entities::configured_provider::ProviderKind,
+    domain::{
+        entities::configured_provider::ProviderKind,
+        value_objects::reasoning_effort::ReasoningEffort,
+    },
     infrastructure::providers::cli::command_runner::{CommandExecutionRequest, CommandRunner},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptMode {
     Stdin,
     Argument,
+    ArgumentWithFlag(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReasoningEffortArgument {
+    Flag(String),
+    CodexConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +34,8 @@ pub struct CliCommandProfile {
     pub binary: String,
     pub args: Vec<String>,
     pub availability_args: Vec<String>,
+    pub model_flag: Option<String>,
+    pub reasoning_effort_argument: Option<ReasoningEffortArgument>,
     pub prompt_mode: PromptMode,
     pub timeout: Duration,
 }
@@ -78,10 +90,23 @@ impl CliProviderExecutor for GenericCliProviderExecutor {
         &self,
         request: &AnalyzeCaptureRequest,
     ) -> Result<NormalizedResponse, ApplicationError> {
-        let (args, stdin) = match self.profile.prompt_mode {
-            PromptMode::Stdin => (self.profile.args.clone(), Some(request.base_prompt.clone())),
+        let dynamic_args = build_dynamic_args(&self.profile, request);
+        let (args, stdin) = match &self.profile.prompt_mode {
+            PromptMode::Stdin => {
+                let mut args = self.profile.args.clone();
+                args.extend(dynamic_args);
+                (args, Some(request.base_prompt.clone()))
+            }
             PromptMode::Argument => {
                 let mut args = self.profile.args.clone();
+                args.extend(dynamic_args);
+                args.push(request.base_prompt.clone());
+                (args, None)
+            }
+            PromptMode::ArgumentWithFlag(prompt_flag) => {
+                let mut args = self.profile.args.clone();
+                args.extend(dynamic_args);
+                args.push(prompt_flag.clone());
                 args.push(request.base_prompt.clone());
                 (args, None)
             }
@@ -126,6 +151,55 @@ impl CliProviderExecutor for GenericCliProviderExecutor {
             answer: answer.to_string(),
             raw_output: result.stdout,
         })
+    }
+}
+
+fn build_dynamic_args(profile: &CliCommandProfile, request: &AnalyzeCaptureRequest) -> Vec<String> {
+    let mut args = Vec::new();
+
+    if let Some(model_flag) = &profile.model_flag {
+        if should_pass_model_key(request.model_key.as_str()) {
+            args.push(model_flag.clone());
+            args.push(request.model_key.as_str().to_string());
+        }
+    }
+
+    if let Some(reasoning_effort_argument) = &profile.reasoning_effort_argument {
+        match reasoning_effort_argument {
+            ReasoningEffortArgument::Flag(flag) => {
+                args.push(flag.clone());
+                args.push(reasoning_effort_value(
+                    profile.provider_kind,
+                    request.reasoning_effort,
+                ));
+            }
+            ReasoningEffortArgument::CodexConfig => {
+                args.push("-c".to_string());
+                args.push(format!(
+                    "model_reasoning_effort=\"{}\"",
+                    request.reasoning_effort.as_str()
+                ));
+            }
+        }
+    }
+
+    args
+}
+
+fn should_pass_model_key(model_key: &str) -> bool {
+    !matches!(
+        model_key,
+        "claude-cli-default" | "codex-latest" | "copilot-chat"
+    )
+}
+
+fn reasoning_effort_value(
+    provider_kind: ProviderKind,
+    reasoning_effort: ReasoningEffort,
+) -> String {
+    match provider_kind {
+        ProviderKind::ClaudeCli => reasoning_effort.as_claude_effort().to_string(),
+        _ => reasoning_effort.as_str().to_string(),
     }
 }
 

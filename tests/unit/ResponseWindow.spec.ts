@@ -13,6 +13,7 @@ let responseUpdateHandler:
       session_id: string;
       provider_kind: "OpenAi";
       model_key: string;
+      reasoning_effort: "medium";
       display_messages: Array<{
         id: string;
         role: "assistant" | "system" | "user";
@@ -55,6 +56,7 @@ function samplePayload() {
     session_id: "session-1",
     provider_kind: "OpenAi" as const,
     model_key: "gpt-4.1-mini",
+    reasoning_effort: "medium" as const,
     display_messages: [
       {
         id: "message-1",
@@ -158,6 +160,7 @@ describe("ResponseWindow", () => {
       session_id: "session-1",
       provider_kind: "OpenAi",
       model_key: "gpt-4.1-mini",
+      reasoning_effort: "medium",
       prompt: "Me de mais exemplos",
       existing_messages: samplePayload().conversation_messages
     });

@@ -10,10 +10,15 @@ use apollo::{
         errors::{ApplicationError, ApplicationErrorKind},
         ports::provider::CliProviderExecutor,
     },
-    domain::{entities::configured_provider::ProviderKind, value_objects::model_key::ModelKey},
+    domain::{
+        entities::configured_provider::ProviderKind,
+        value_objects::{model_key::ModelKey, reasoning_effort::ReasoningEffort},
+    },
     infrastructure::providers::cli::{
         command_runner::{CommandExecutionRequest, CommandExecutionResult, CommandRunner},
-        executor::{CliCommandProfile, GenericCliProviderExecutor, PromptMode},
+        executor::{
+            CliCommandProfile, GenericCliProviderExecutor, PromptMode, ReasoningEffortArgument,
+        },
     },
 };
 
@@ -62,6 +67,7 @@ fn request(provider_kind: ProviderKind, model_key: &str) -> AnalyzeCaptureReques
     AnalyzeCaptureRequest {
         provider_kind,
         model_key: ModelKey::new(model_key).expect("model key should be valid"),
+        reasoning_effort: ReasoningEffort::High,
         base_prompt: "Explain this sentence.".to_string(),
         ocr_text: "I have been looking forward to this trip.".to_string(),
         user_notes: Some("Keep it concise.".to_string()),
@@ -79,6 +85,8 @@ fn profile(
         binary: binary.to_string(),
         args: vec!["run".to_string()],
         availability_args: vec!["--version".to_string()],
+        model_flag: None,
+        reasoning_effort_argument: None,
         prompt_mode,
         timeout: Duration::from_secs(10),
     }
@@ -125,20 +133,20 @@ fn cli_executor_appends_argument_prompt_without_using_stdin() {
             CliCommandProfile {
                 provider_kind: ProviderKind::CopilotCli,
                 binary: "copilot".to_string(),
-                args: vec![
-                    "--allow-all-tools".to_string(),
-                    "--silent".to_string(),
-                    "-p".to_string(),
-                ],
+                args: vec!["--allow-all-tools".to_string(), "--silent".to_string()],
                 availability_args: vec!["--version".to_string()],
-                prompt_mode: PromptMode::Argument,
+                model_flag: Some("--model".to_string()),
+                reasoning_effort_argument: Some(ReasoningEffortArgument::Flag(
+                    "--reasoning-effort".to_string(),
+                )),
+                prompt_mode: PromptMode::ArgumentWithFlag("-p".to_string()),
                 timeout: Duration::from_secs(10),
             },
             Arc::new(runner.clone()),
         );
 
         let response = executor
-            .execute(&request(ProviderKind::CopilotCli, "copilot-chat"))
+            .execute(&request(ProviderKind::CopilotCli, "gpt-5-mini"))
             .await
             .expect("argument prompt mode should execute");
 
@@ -151,11 +159,106 @@ fn cli_executor_appends_argument_prompt_without_using_stdin() {
             vec![
                 "--allow-all-tools".to_string(),
                 "--silent".to_string(),
+                "--model".to_string(),
+                "gpt-5-mini".to_string(),
+                "--reasoning-effort".to_string(),
+                "high".to_string(),
                 "-p".to_string(),
                 "Explain this sentence.".to_string(),
             ]
         );
         assert_eq!(requests[0].stdin, None);
+    });
+}
+
+#[test]
+fn cli_executor_maps_codex_model_and_reasoning_to_config_args() {
+    tauri::async_runtime::block_on(async {
+        let runner = FakeRunner::with_responses(vec![Ok(CommandExecutionResult {
+            exit_code: Some(0),
+            stdout: "Codex answer".to_string(),
+            stderr: String::new(),
+            timed_out: false,
+        })]);
+        let executor = GenericCliProviderExecutor::new(
+            CliCommandProfile {
+                provider_kind: ProviderKind::CodexCli,
+                binary: "codex".to_string(),
+                args: vec!["exec".to_string(), "--skip-git-repo-check".to_string()],
+                availability_args: vec!["--version".to_string()],
+                model_flag: Some("--model".to_string()),
+                reasoning_effort_argument: Some(ReasoningEffortArgument::CodexConfig),
+                prompt_mode: PromptMode::Stdin,
+                timeout: Duration::from_secs(10),
+            },
+            Arc::new(runner.clone()),
+        );
+
+        executor
+            .execute(&request(ProviderKind::CodexCli, "gpt-5.4"))
+            .await
+            .expect("codex command should execute");
+
+        let requests = runner.requests();
+        assert_eq!(
+            requests[0].args,
+            vec![
+                "exec".to_string(),
+                "--skip-git-repo-check".to_string(),
+                "--model".to_string(),
+                "gpt-5.4".to_string(),
+                "-c".to_string(),
+                "model_reasoning_effort=\"high\"".to_string(),
+            ]
+        );
+        assert_eq!(requests[0].stdin.as_deref(), Some("Explain this sentence."));
+    });
+}
+
+#[test]
+fn cli_executor_maps_claude_xhigh_reasoning_to_max_effort() {
+    tauri::async_runtime::block_on(async {
+        let runner = FakeRunner::with_responses(vec![Ok(CommandExecutionResult {
+            exit_code: Some(0),
+            stdout: "Claude answer".to_string(),
+            stderr: String::new(),
+            timed_out: false,
+        })]);
+        let executor = GenericCliProviderExecutor::new(
+            CliCommandProfile {
+                provider_kind: ProviderKind::ClaudeCli,
+                binary: "claude".to_string(),
+                args: Vec::new(),
+                availability_args: vec!["--version".to_string()],
+                model_flag: Some("--model".to_string()),
+                reasoning_effort_argument: Some(ReasoningEffortArgument::Flag(
+                    "--effort".to_string(),
+                )),
+                prompt_mode: PromptMode::ArgumentWithFlag("-p".to_string()),
+                timeout: Duration::from_secs(10),
+            },
+            Arc::new(runner.clone()),
+        );
+        let mut request = request(ProviderKind::ClaudeCli, "sonnet-4.6");
+        request.reasoning_effort = ReasoningEffort::XHigh;
+
+        executor
+            .execute(&request)
+            .await
+            .expect("claude command should execute");
+
+        let requests = runner.requests();
+        assert_eq!(
+            requests[0].args,
+            vec![
+                "--model".to_string(),
+                "sonnet-4.6".to_string(),
+                "--effort".to_string(),
+                "max".to_string(),
+                "-p".to_string(),
+                "Explain this sentence.".to_string(),
+            ]
+        );
     });
 }
 

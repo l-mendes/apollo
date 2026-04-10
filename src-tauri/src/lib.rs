@@ -130,6 +130,8 @@ pub fn run() {
             commands::capture::apply_global_shortcuts,
             commands::history::list_history,
             commands::history::load_conversation_messages,
+            commands::history::delete_history_session,
+            commands::history::clear_history,
             commands::providers::list_provider_models,
             commands::providers::list_provider_models_for,
             commands::settings::load_settings,

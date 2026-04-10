@@ -64,6 +64,7 @@ impl ContinueConversation for ContinueConversationService {
         let provider_request = AnalyzeCaptureRequest {
             provider_kind: request.provider_kind,
             model_key: request.model_key.clone(),
+            reasoning_effort: request.reasoning_effort,
             base_prompt: prompt.clone(),
             ocr_text: String::new(),
             user_notes: Some(request.prompt.clone()),

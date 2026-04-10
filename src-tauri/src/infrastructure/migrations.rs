@@ -26,6 +26,10 @@ const MIGRATIONS: &[Migration] = &[
         "0003_default_ocr_language_eng",
         include_str!("../../migrations/0003_default_ocr_language_eng.sql"),
     ),
+    Migration::new(
+        "0004_reasoning_effort_settings",
+        include_str!("../../migrations/0004_reasoning_effort_settings.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]
@@ -82,7 +86,15 @@ mod tests {
         let first_run = run_migrations(&connection).expect("migrations should apply");
         let second_run = run_migrations(&connection).expect("migrations should be idempotent");
 
-        assert_eq!(first_run, vec!["0001_initial_schema".to_string(), "0002_language_settings".to_string(), "0003_default_ocr_language_eng".to_string()]);
+        assert_eq!(
+            first_run,
+            vec![
+                "0001_initial_schema".to_string(),
+                "0002_language_settings".to_string(),
+                "0003_default_ocr_language_eng".to_string(),
+                "0004_reasoning_effort_settings".to_string(),
+            ]
+        );
         assert!(second_run.is_empty());
     }
 

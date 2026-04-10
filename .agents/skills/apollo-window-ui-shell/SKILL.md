@@ -23,7 +23,8 @@ This domain owns the desktop shell that stitches Vue surfaces to native Tauri wi
 - `useDesktopCapabilities.ts` handles runtime bootstrap and quit actions; keep it separate from domain-specific commands.
 - Surface components should implement loading, ready, and error states explicitly because those states are part of the documented UI contract.
 - The response window renders a compact chat from shell events; follow-ups from that window must sync back to the app window without exposing composed prompt internals.
-- Response-window follow-ups should clear the composer immediately, show the submitted message and Apollo thinking state, then unlock input only after the provider response is fully synced.
+- History double-click opens the selected session timeline in the response window rather than rendering conversation detail inside `HistorySurface.vue`.
+- Response-window follow-ups should clear the composer immediately, show the submitted message and thinking state, then unlock input only after the provider response is fully synced.
 - Selection window placement depends on cursor monitor resolution and is easy to break on multi-monitor or HiDPI setups.
 
 ## Validation

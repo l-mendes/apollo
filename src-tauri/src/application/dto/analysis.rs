@@ -5,13 +5,17 @@ use crate::domain::{
         configured_provider::ProviderKind, conversation_message::ConversationMessage,
         interaction_session::InteractionSession, provider_model::ProviderModel,
     },
-    value_objects::{identifiers::SessionId, model_key::ModelKey},
+    value_objects::{
+        identifiers::SessionId, model_key::ModelKey, reasoning_effort::ReasoningEffort,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnalyzeCaptureRequest {
     pub provider_kind: ProviderKind,
     pub model_key: ModelKey,
+    #[serde(default)]
+    pub reasoning_effort: ReasoningEffort,
     pub base_prompt: String,
     pub ocr_text: String,
     pub user_notes: Option<String>,
@@ -38,6 +42,8 @@ pub struct ContinueConversationRequest {
     pub session_id: SessionId,
     pub provider_kind: ProviderKind,
     pub model_key: ModelKey,
+    #[serde(default)]
+    pub reasoning_effort: ReasoningEffort,
     pub prompt: String,
     pub existing_messages: Vec<ConversationMessage>,
 }

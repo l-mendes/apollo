@@ -8,6 +8,7 @@ import {
   providerLabel,
   type ProviderModel,
   type ProviderKind,
+  type ReasoningEffort,
   type UserSettings
 } from "@/composables/useApolloDesktop";
 import { useApolloStore } from "@/store/apollo";
@@ -77,6 +78,17 @@ function changeModel(modelKey: string) {
   });
 }
 
+function changeReasoningEffort(reasoningEffort: ReasoningEffort) {
+  if (!settings.value) {
+    return;
+  }
+
+  updateDraft({
+    ...cloneSettings(settings.value),
+    reasoning_effort: reasoningEffort
+  });
+}
+
 function changeBasePrompt(basePrompt: string) {
   if (!settings.value) {
     return;
@@ -130,6 +142,33 @@ const OUTPUT_LANGUAGE_OPTIONS = [
   "Italiano",
   "中文",
   "日本語"
+];
+
+const REASONING_EFFORT_OPTIONS: Array<{
+  value: ReasoningEffort;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "low",
+    label: "Low",
+    description: "Mais rapido e economico para perguntas simples."
+  },
+  {
+    value: "medium",
+    label: "Medium",
+    description: "Equilibrio padrao entre velocidade e qualidade."
+  },
+  {
+    value: "high",
+    label: "High",
+    description: "Mais raciocinio para explicacoes complexas."
+  },
+  {
+    value: "xhigh",
+    label: "XHigh",
+    description: "Maximo esforco quando o provider suportar."
+  }
 ];
 
 function changeShortcutValue(
@@ -272,6 +311,28 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
             Nenhum modelo disponivel
           </option>
         </select>
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6">
+      <p class="text-sm font-semibold text-white">Reasoning</p>
+      <p class="mt-1 text-sm text-apollo-app-muted">Esforco de raciocinio usado por providers compativeis. Providers sem suporte ignoram esta preferencia.</p>
+      <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <button
+          v-for="option in REASONING_EFFORT_OPTIONS"
+          :key="option.value"
+          class="rounded-xl border p-4 text-left transition"
+          :class="
+            settings.reasoning_effort === option.value
+              ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
+              : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
+          "
+          type="button"
+          @click="changeReasoningEffort(option.value)"
+        >
+          <span class="text-sm font-semibold">{{ option.label }}</span>
+          <span class="mt-2 block text-xs leading-5 text-apollo-app-muted">{{ option.description }}</span>
+        </button>
       </div>
     </div>
 

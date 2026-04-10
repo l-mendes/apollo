@@ -21,9 +21,7 @@ use apollo::{
         ports::{
             capture::OcrEngine,
             provider::{AiProvider, CliProviderExecutor, ProviderRegistry},
-            repositories::{
-                ConversationRepository, HistoryRepository, SettingsRepository,
-            },
+            repositories::{ConversationRepository, HistoryRepository, SettingsRepository},
         },
         services::prompt_builder::PromptBuilder,
         use_cases::{
@@ -38,9 +36,7 @@ use apollo::{
         entities::{
             capture_record::{CaptureRecord, OcrStatus},
             configured_provider as domain_provider,
-            conversation_message::{
-                ConversationMessage, MessageRole as DomainMessageRole,
-            },
+            conversation_message::{ConversationMessage, MessageRole as DomainMessageRole},
             interaction_session::{AnalysisSourceKind, InteractionSession},
             shortcut_binding::ShortcutBinding,
             user_settings::UserSettings,
@@ -48,6 +44,7 @@ use apollo::{
         value_objects::{
             identifiers::{CaptureId, MessageId, SessionId},
             model_key::ModelKey,
+            reasoning_effort::ReasoningEffort,
             shortcut::{ShortcutAccelerator, ShortcutAction},
         },
     },
@@ -166,8 +163,17 @@ pub struct ShortcutBindingSpec {
 pub struct SettingsSpec {
     pub preferred_provider: ProviderKind,
     pub preferred_model_id: String,
+    pub reasoning_effort: ReasoningEffortSpec,
     pub base_prompt: String,
     pub shortcuts: Vec<ShortcutBindingSpec>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReasoningEffortSpec {
+    Low,
+    Medium,
+    High,
+    XHigh,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -513,9 +519,12 @@ impl BackendContractHarness for ContractBackendHarness {
 
     fn save_session(&self, session: &HistorySessionSpec) -> Result<(), PersistenceFailureSpec> {
         tauri::async_runtime::block_on(async {
-            HistoryRepository::save_session(self.repository.as_ref(), &to_interaction_session(session))
-                .await
-                .map_err(map_persistence_error)
+            HistoryRepository::save_session(
+                self.repository.as_ref(),
+                &to_interaction_session(session),
+            )
+            .await
+            .map_err(map_persistence_error)
         })
     }
 
@@ -577,6 +586,7 @@ impl BackendContractHarness for ContractBackendHarness {
                     session_id: session_id.clone(),
                     provider_kind: provider_kind.into(),
                     model_key: ModelKey::new(model_id).expect("model key should be valid"),
+                    reasoning_effort: ReasoningEffort::Medium,
                     prompt: prompt.to_string(),
                     existing_messages,
                 })
@@ -664,6 +674,7 @@ fn to_analyze_request(spec: &AnalyzeRequestSpec) -> AnalyzeCaptureRequest {
     AnalyzeCaptureRequest {
         provider_kind: spec.provider_kind.into(),
         model_key: ModelKey::new(&spec.model_id).expect("model key should be valid"),
+        reasoning_effort: ReasoningEffort::Medium,
         base_prompt: spec.base_prompt.clone(),
         ocr_text: spec.ocr_text.clone(),
         user_notes: Some(spec.user_notes.clone()),
@@ -703,6 +714,7 @@ fn to_user_settings(settings: &SettingsSpec) -> UserSettings {
         preferred_provider: settings.preferred_provider.into(),
         preferred_model: ModelKey::new(&settings.preferred_model_id)
             .expect("model key should be valid"),
+        reasoning_effort: settings.reasoning_effort.into(),
         base_prompt: settings.base_prompt.clone(),
         ocr_language: defaults.ocr_language,
         output_language: defaults.output_language,
@@ -836,6 +848,28 @@ impl From<domain_provider::ProviderChannel> for ProviderChannel {
     }
 }
 
+impl From<ReasoningEffortSpec> for ReasoningEffort {
+    fn from(value: ReasoningEffortSpec) -> Self {
+        match value {
+            ReasoningEffortSpec::Low => Self::Low,
+            ReasoningEffortSpec::Medium => Self::Medium,
+            ReasoningEffortSpec::High => Self::High,
+            ReasoningEffortSpec::XHigh => Self::XHigh,
+        }
+    }
+}
+
+impl From<ReasoningEffort> for ReasoningEffortSpec {
+    fn from(value: ReasoningEffort) -> Self {
+        match value {
+            ReasoningEffort::Low => Self::Low,
+            ReasoningEffort::Medium => Self::Medium,
+            ReasoningEffort::High => Self::High,
+            ReasoningEffort::XHigh => Self::XHigh,
+        }
+    }
+}
+
 impl From<MessageRole> for DomainMessageRole {
     fn from(value: MessageRole) -> Self {
         match value {
@@ -893,6 +927,7 @@ impl From<UserSettings> for SettingsSpec {
         Self {
             preferred_provider: value.preferred_provider.into(),
             preferred_model_id: value.preferred_model.as_str().to_string(),
+            reasoning_effort: value.reasoning_effort.into(),
             base_prompt: value.base_prompt,
             shortcuts: value
                 .shortcuts
@@ -968,6 +1003,7 @@ pub fn sample_settings() -> SettingsSpec {
     SettingsSpec {
         preferred_provider: ProviderKind::OpenAi,
         preferred_model_id: "gpt-4.1-mini".to_string(),
+        reasoning_effort: ReasoningEffortSpec::Medium,
         base_prompt: "Always answer in a concise teaching style.".to_string(),
         shortcuts: vec![
             ShortcutBindingSpec {

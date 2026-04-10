@@ -15,6 +15,7 @@ use apollo::{
         value_objects::{
             identifiers::{MessageId, SessionId},
             model_key::ModelKey,
+            reasoning_effort::ReasoningEffort,
             shortcut::{ShortcutAccelerator, ShortcutAction},
         },
     },
@@ -45,6 +46,7 @@ fn sqlite_repository_round_trips_settings_and_shortcuts() {
         let settings = UserSettings {
             preferred_provider: ProviderKind::CodexCli,
             preferred_model: ModelKey::new("codex-latest").expect("model key should be valid"),
+            reasoning_effort: ReasoningEffort::High,
             base_prompt: "Answer as a concise language tutor.".to_string(),
             ocr_language: "eng".to_string(),
             output_language: "English".to_string(),
@@ -155,5 +157,95 @@ fn sqlite_repository_returns_messages_in_creation_order_for_a_session() {
             .expect("conversation should load");
 
         assert_eq!(messages, vec![first, second]);
+    });
+}
+
+#[test]
+fn sqlite_repository_deletes_history_sessions_with_their_messages() {
+    tauri::async_runtime::block_on(async {
+        let repository = Arc::new(bootstrap_repository());
+        let session = InteractionSession {
+            id: SessionId::new("session-delete").expect("session id should be valid"),
+            provider_kind: ProviderKind::OpenAi,
+            model_key: ModelKey::new("gpt-4.1-mini").expect("model key should be valid"),
+            source_kind: AnalysisSourceKind::ScreenCapture,
+            ocr_text: Some("Delete this session".to_string()),
+            user_notes: None,
+            request_prompt: Some("Delete prompt".to_string()),
+            response_text: Some("Delete response".to_string()),
+        };
+        let message = ConversationMessage::new(
+            MessageId::new("message-delete").expect("message id should be valid"),
+            session.id.clone(),
+            MessageRole::Assistant,
+            "Message tied to deleted session",
+        )
+        .expect("message should be valid");
+
+        HistoryRepository::save_session(repository.as_ref(), &session)
+            .await
+            .expect("session should persist");
+        ConversationRepository::append_message(repository.as_ref(), &message)
+            .await
+            .expect("message should persist");
+
+        HistoryRepository::delete_session(repository.as_ref(), &session.id)
+            .await
+            .expect("session should delete");
+
+        let sessions = HistoryRepository::list_sessions(repository.as_ref())
+            .await
+            .expect("history should list sessions");
+        let messages = ConversationRepository::load_by_session(repository.as_ref(), &session.id)
+            .await
+            .expect("conversation should load");
+
+        assert!(!sessions.contains(&session));
+        assert!(messages.is_empty());
+    });
+}
+
+#[test]
+fn sqlite_repository_clears_history_sessions_and_conversations() {
+    tauri::async_runtime::block_on(async {
+        let repository = Arc::new(bootstrap_repository());
+        let session = InteractionSession {
+            id: SessionId::new("session-clear").expect("session id should be valid"),
+            provider_kind: ProviderKind::OpenAi,
+            model_key: ModelKey::new("gpt-4.1-mini").expect("model key should be valid"),
+            source_kind: AnalysisSourceKind::ManualText,
+            ocr_text: None,
+            user_notes: Some("Clear history".to_string()),
+            request_prompt: Some("Clear history".to_string()),
+            response_text: Some("Clear response".to_string()),
+        };
+        let message = ConversationMessage::new(
+            MessageId::new("message-clear").expect("message id should be valid"),
+            session.id.clone(),
+            MessageRole::User,
+            "Message tied to cleared history",
+        )
+        .expect("message should be valid");
+
+        HistoryRepository::save_session(repository.as_ref(), &session)
+            .await
+            .expect("session should persist");
+        ConversationRepository::append_message(repository.as_ref(), &message)
+            .await
+            .expect("message should persist");
+
+        HistoryRepository::clear_sessions(repository.as_ref())
+            .await
+            .expect("history should clear");
+
+        let sessions = HistoryRepository::list_sessions(repository.as_ref())
+            .await
+            .expect("history should list sessions");
+        let messages = ConversationRepository::load_by_session(repository.as_ref(), &session.id)
+            .await
+            .expect("conversation should load");
+
+        assert!(sessions.is_empty());
+        assert!(messages.is_empty());
     });
 }

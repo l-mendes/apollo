@@ -62,8 +62,8 @@ impl ScreenCapturePort for XCapCapturePort {
                 )
             })??;
 
-        let id = CaptureId::new(Uuid::new_v4().to_string())
-            .expect("uuid is always a valid capture id");
+        let id =
+            CaptureId::new(Uuid::new_v4().to_string()).expect("uuid is always a valid capture id");
 
         Ok(CaptureRecord {
             id,
@@ -149,8 +149,8 @@ pub fn extract_text_sync(image_path: &str, lang: &str) -> Result<String, Applica
 }
 
 fn primary_monitor() -> Result<Monitor, ApplicationError> {
-    let monitors = Monitor::all()
-        .map_err(|error| map_xcap_error(error, "screen enumeration failed"))?;
+    let monitors =
+        Monitor::all().map_err(|error| map_xcap_error(error, "screen enumeration failed"))?;
 
     monitors
         .into_iter()

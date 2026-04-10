@@ -31,6 +31,10 @@ pub trait HistoryRepository: Send + Sync {
     async fn save_session(&self, session: &InteractionSession) -> Result<(), ApplicationError>;
 
     async fn list_sessions(&self) -> Result<Vec<InteractionSession>, ApplicationError>;
+
+    async fn delete_session(&self, session_id: &SessionId) -> Result<(), ApplicationError>;
+
+    async fn clear_sessions(&self) -> Result<(), ApplicationError>;
 }
 
 #[async_trait]

@@ -24,10 +24,8 @@ impl AiProvider for StubAiProvider {
 
     async fn list_models(
         &self,
-    ) -> Result<
-        Vec<apollo::domain::entities::provider_model::ProviderModel>,
-        ApplicationError,
-    > {
+    ) -> Result<Vec<apollo::domain::entities::provider_model::ProviderModel>, ApplicationError>
+    {
         Ok(Vec::new())
     }
 

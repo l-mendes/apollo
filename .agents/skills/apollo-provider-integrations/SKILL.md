@@ -22,6 +22,7 @@ This domain owns how Apollo talks to remote HTTP providers and local CLI provide
 - `ManualProviderModelCatalog` is the source of truth for provider and model selections exposed to the UI.
 - `InMemoryProviderRegistry` is the composition boundary that wires the catalog to concrete adapters.
 - HTTP providers share `HttpTransport`; CLI providers share `GenericCliProviderExecutor` and `ProcessCommandRunner`.
+- CLI runtime profiles define how selected model keys and reasoning effort are translated into provider-specific command arguments.
 - Runtime profiles can read environment variables, but missing credentials must still normalize into clear `ApplicationErrorKind` values.
 
 ## Validation

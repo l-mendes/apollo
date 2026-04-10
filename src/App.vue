@@ -10,10 +10,11 @@ import {
   analyzeCapture,
   applyGlobalShortcuts,
   captureScreenRegion,
+  clearHistory,
   cloneSettings,
   commandErrorMessage,
-  continueConversation,
   createEmptyProviderCatalog,
+  deleteHistorySession,
   type AnalyzeCaptureResponse,
   type CaptureRegionRequest,
   type InteractionSession,
@@ -33,6 +34,7 @@ import {
   emitSurfaceChanged,
   emitToPreviewWindow,
   emitToResponseWindow,
+  hideResponseWindow,
   listenForAppCloseToHide,
   listenForOcrResult,
   listenForPreviewCancel,
@@ -440,6 +442,10 @@ function buildResponsePayload(
     session_id: session.id,
     provider_kind: session.provider_kind,
     model_key: session.model_key,
+    reasoning_effort:
+      store.state.settings.draft?.reasoning_effort ??
+      store.state.settings.saved?.reasoning_effort ??
+      "medium",
     display_messages: buildChatMessages(session, conversationMessages),
     conversation_messages: conversationMessages
   };
@@ -495,6 +501,102 @@ function syncResponseConversation(
   });
 }
 
+function resetHistoryConversationState() {
+  store.commit("patchHistoryState", {
+    selectedHistoryId: null,
+    conversationMessages: [],
+    conversationError: null,
+    continuePrompt: "",
+    pendingFollowUp: null,
+    continueLoading: false,
+    continueError: null
+  });
+}
+
+async function openHistorySessionChat(sessionId: string) {
+  const session = store.state.history.items.find(
+    (item: InteractionSession) => item.id === sessionId
+  );
+
+  if (!session) {
+    return;
+  }
+
+  store.commit("patchHistoryState", {
+    selectedHistoryId: sessionId,
+    conversationError: null
+  });
+
+  const conversationMessages = await refreshConversation(sessionId);
+
+  await syncResponseWindow(session, conversationMessages);
+}
+
+async function handleDeleteHistorySession(sessionId: string) {
+  store.commit("patchHistoryState", {
+    error: null
+  });
+
+  try {
+    await deleteHistorySession(sessionId);
+
+    const wasSelectedSession =
+      store.state.history.selectedHistoryId === sessionId;
+    const remainingSessions = store.state.history.items.filter(
+      (session: InteractionSession) => session.id !== sessionId
+    );
+
+    store.commit("patchHistoryState", {
+      items: remainingSessions,
+      selectedHistoryId: wasSelectedSession
+        ? (remainingSessions[0]?.id ?? null)
+        : store.state.history.selectedHistoryId,
+      conversationMessages: wasSelectedSession
+        ? []
+        : store.state.history.conversationMessages,
+      continuePrompt: wasSelectedSession
+        ? ""
+        : store.state.history.continuePrompt,
+      pendingFollowUp: wasSelectedSession
+        ? null
+        : store.state.history.pendingFollowUp,
+      continueError: wasSelectedSession
+        ? null
+        : store.state.history.continueError
+    });
+
+    if (wasSelectedSession) {
+      await hideResponseWindow();
+    }
+  } catch (error) {
+    store.commit("patchHistoryState", {
+      error: commandErrorMessage(
+        error,
+        "Nao foi possivel excluir esta sessao do historico."
+      )
+    });
+  }
+}
+
+async function handleClearHistory() {
+  store.commit("patchHistoryState", {
+    error: null
+  });
+
+  try {
+    await clearHistory();
+    store.commit("patchHistoryState", {
+      items: []
+    });
+    resetHistoryConversationState();
+    await hideResponseWindow();
+  } catch (error) {
+    store.commit("patchHistoryState", {
+      error: commandErrorMessage(error, "Nao foi possivel limpar o historico.")
+    });
+  }
+}
+
 async function handleAnalyze() {
   const settingsDraft = store.state.settings.draft;
   const ocrText = store.state.analysis.ocrText.trim();
@@ -517,6 +619,7 @@ async function handleAnalyze() {
     const result = await analyzeCapture({
       provider_kind: settingsDraft.preferred_provider,
       model_key: settingsDraft.preferred_model,
+      reasoning_effort: settingsDraft.reasoning_effort,
       base_prompt: effectiveBasePrompt,
       ocr_text: ocrText,
       user_notes: store.state.analysis.userNotes.trim()
@@ -553,73 +656,6 @@ async function handleAnalyze() {
   } finally {
     store.commit("patchAnalysisState", {
       loading: false
-    });
-  }
-}
-
-async function handleContinueConversation(promptOverride?: string) {
-  const selectedSession = store.state.history.items.find(
-    (session: InteractionSession) =>
-      session.id === store.state.history.selectedHistoryId
-  );
-  const prompt = (promptOverride ?? store.state.history.continuePrompt).trim();
-
-  if (!selectedSession || !prompt) {
-    return;
-  }
-
-  store.commit("patchHistoryState", {
-    continueLoading: true,
-    continueError: null,
-    continuePrompt: "",
-    pendingFollowUp: prompt
-  });
-
-  try {
-    const result = await continueConversation({
-      session_id: selectedSession.id,
-      provider_kind: selectedSession.provider_kind,
-      model_key: selectedSession.model_key,
-      prompt,
-      existing_messages: store.state.history.conversationMessages
-    });
-    const updatedConversationMessages = mergeConversationMessages(
-      store.state.history.conversationMessages,
-      result.appended_messages
-    );
-    const updatedSession = {
-      ...selectedSession,
-      source_kind: "ManualText" as const,
-      user_notes:
-        result.appended_messages[0]?.content ?? selectedSession.user_notes,
-      response_text: result.response.answer
-    };
-
-    store.commit("patchHistoryState", {
-      conversationMessages: updatedConversationMessages,
-      continuePrompt: "",
-      pendingFollowUp: null,
-      items: store.state.history.items.map((session: InteractionSession) =>
-        session.id === selectedSession.id ? updatedSession : session
-      )
-    });
-    store.commit("patchAnalysisState", {
-      lastResponse: result.response
-    });
-
-    await syncResponseWindow(updatedSession, updatedConversationMessages);
-  } catch (error) {
-    store.commit("patchHistoryState", {
-      continuePrompt: prompt,
-      pendingFollowUp: null,
-      continueError: commandErrorMessage(
-        error,
-        "Nao foi possivel continuar a conversa desta sessao."
-      )
-    });
-  } finally {
-    store.commit("patchHistoryState", {
-      continueLoading: false
     });
   }
 }
@@ -832,7 +868,9 @@ function discardPendingCapture() {
 
             <HistorySurface
               v-else-if="activeSurface === 'history'"
-              @continue-conversation="handleContinueConversation"
+              @clear-history="handleClearHistory"
+              @delete-session="handleDeleteHistorySession"
+              @open-session-chat="openHistorySessionChat"
             />
 
             <SettingsSurface v-else @save="handleSaveSettings" />

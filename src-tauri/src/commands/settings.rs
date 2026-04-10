@@ -16,7 +16,9 @@ pub async fn save_settings(
     state: State<'_, AppState>,
     settings: UserSettings,
 ) -> Result<(), ApplicationError> {
-    state.inner().apply_ocr_language(settings.ocr_language.clone());
+    state
+        .inner()
+        .apply_ocr_language(settings.ocr_language.clone());
     crate::application::ports::repositories::SettingsRepository::save(
         state.repository().as_ref(),
         &settings,

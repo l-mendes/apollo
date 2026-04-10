@@ -26,7 +26,8 @@ Current main flow:
 - the selected provider answers through HTTP or CLI;
 - sessions and messages are persisted in SQLite;
 - the response window presents the captured OCR text and model answer as a compact chat;
-- the UI lets the user review history and continue the conversation with the same session, provider, and model.
+- the history surface lists saved sessions, supports deleting or clearing history, and opens a session chat in the response window on double click.
+- the UI lets the user continue a conversation with the same session, provider, and model.
 
 ## Stack And Runtime
 
@@ -59,12 +60,15 @@ Current main flow:
 - The selection overlay must disappear visually before capture so preview images never include borders, backdrop tint, or helper hints.
 - Follow-ups must reuse the original session, provider, and model.
 - Conversation messages must load in creation order.
+- Deleting history must remove both session records and their conversation messages.
 - Chat-style conversation surfaces should reuse the shared `ConversationChat` component and keep prompt internals hidden from the user-facing timeline.
 - During follow-up processing, chat surfaces should clear the composer, show the submitted message plus a thinking state, and keep input disabled until the provider response completes.
+- Provider execution should receive the selected model and persisted reasoning effort when the provider supports those controls.
 
 ## Persistence And Core Data
 
 - User settings, shortcuts, sessions, messages, and capture metadata live in local SQLite.
+- User settings include preferred provider, model, reasoning effort, base prompt, OCR language, output language, and shortcuts.
 - App bootstrap prepares the database, runs migrations, and builds `AppState`.
 - The manual provider and model catalog lives in `src-tauri/resources/provider-models.json`.
 - Contract changes between Rust and the frontend must update Rust DTOs and TypeScript interfaces in the same flow.

@@ -8,6 +8,7 @@ import { apolloStoreKey, createApolloStore } from "@/store/apollo";
 const settings: UserSettings = {
   preferred_provider: "OpenAi",
   preferred_model: "gpt-4.1-mini",
+  reasoning_effort: "medium",
   base_prompt: "Explain meaning, grammar and usage.",
   ocr_language: "por",
   output_language: "Português",

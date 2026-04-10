@@ -9,7 +9,8 @@ import {
   continueConversation,
   providerLabel,
   type ConversationMessage,
-  type ProviderKind
+  type ProviderKind,
+  type ReasoningEffort
 } from "@/composables/useApolloDesktop";
 import {
   emitResponseConversationSync,
@@ -20,6 +21,7 @@ import {
 const sessionId = ref<string | null>(null);
 const providerKind = ref<ProviderKind | null>(null);
 const modelKey = ref("");
+const reasoningEffort = ref<ReasoningEffort>("medium");
 const messages = ref<ChatMessage[]>([]);
 const conversationMessages = ref<ConversationMessage[]>([]);
 const continuePrompt = ref("");
@@ -41,6 +43,7 @@ function syncFromPayload(payload: ResponseUpdatePayload) {
   sessionId.value = payload.session_id;
   providerKind.value = payload.provider_kind;
   modelKey.value = payload.model_key;
+  reasoningEffort.value = payload.reasoning_effort;
   messages.value = payload.display_messages.map((message) => ({ ...message }));
   conversationMessages.value = payload.conversation_messages.map((message) => ({
     ...message
@@ -105,6 +108,7 @@ async function submitFollowUp() {
       session_id: sessionId.value,
       provider_kind: providerKind.value,
       model_key: modelKey.value,
+      reasoning_effort: reasoningEffort.value,
       prompt,
       existing_messages: conversationMessages.value
     });

@@ -1,8 +1,7 @@
 <script setup lang="ts">
+import { Trash2 } from "lucide-vue-next";
 import { computed } from "vue";
 
-import ConversationChat from "@/components/chat/ConversationChat.vue";
-import { buildChatMessages } from "@/components/chat/chatMessages";
 import {
   providerLabel,
   type InteractionSession
@@ -10,7 +9,9 @@ import {
 import { useApolloStore } from "@/store/apollo";
 
 const emit = defineEmits<{
-  "continue-conversation": [prompt: string];
+  "clear-history": [];
+  "delete-session": [sessionId: string];
+  "open-session-chat": [sessionId: string];
 }>();
 
 const store = useApolloStore();
@@ -20,22 +21,6 @@ const errorText = computed(
   () => store.getters.historyPanelErrorText as string | null
 );
 const sessions = computed(() => store.state.history.items);
-const conversationMessages = computed(
-  () => store.state.history.conversationMessages
-);
-const conversationLoading = computed(
-  () => store.state.history.conversationLoading
-);
-const conversationErrorText = computed(
-  () => store.state.history.conversationError
-);
-const chatMessages = computed(() =>
-  buildChatMessages(selectedSession.value, conversationMessages.value)
-);
-const continuePrompt = computed(() => store.state.history.continuePrompt);
-const pendingFollowUp = computed(() => store.state.history.pendingFollowUp);
-const continueLoading = computed(() => store.state.history.continueLoading);
-const continueErrorText = computed(() => store.state.history.continueError);
 const selectedSession = computed(
   () => store.getters.selectedSession as InteractionSession | null
 );
@@ -44,27 +29,6 @@ function selectSession(sessionId: string) {
   store.commit("patchHistoryState", {
     selectedHistoryId: sessionId
   });
-}
-
-function updateContinuePrompt(prompt: string) {
-  store.commit("patchHistoryState", {
-    continuePrompt: prompt
-  });
-}
-
-function submitFollowUp() {
-  const prompt = continuePrompt.value.trim();
-
-  if (!prompt || continueLoading.value) {
-    return;
-  }
-
-  updateContinuePrompt("");
-  emit("continue-conversation", prompt);
-}
-
-function openHome() {
-  store.commit("setActiveSurface", "home");
 }
 
 function sourceLabel(sourceKind: InteractionSession["source_kind"]): string {
@@ -77,6 +41,28 @@ function sourceLabel(sourceKind: InteractionSession["source_kind"]): string {
   }
 
   return "Arquivo importado";
+}
+
+function sessionPreview(session: InteractionSession): string {
+  return (
+    session.response_text ??
+    session.ocr_text ??
+    session.user_notes ??
+    "Sem conteudo registrado."
+  );
+}
+
+function openSessionChat(sessionId: string) {
+  selectSession(sessionId);
+  emit("open-session-chat", sessionId);
+}
+
+function deleteSession(sessionId: string) {
+  emit("delete-session", sessionId);
+}
+
+function openHome() {
+  store.commit("setActiveSurface", "home");
 }
 </script>
 
@@ -115,162 +101,88 @@ function sourceLabel(sourceKind: InteractionSession["source_kind"]): string {
     </button>
   </div>
 
-  <div
+  <section
     v-else
-    class="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]"
+    class="rounded-xl border border-apollo-app-border bg-apollo-app-card"
     data-testid="history-ready"
   >
-    <aside class="space-y-2">
-      <div
-        v-if="errorText"
-        class="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50"
-      >
-        {{ errorText }}
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-apollo-app-border px-5 py-4"
+    >
+      <div>
+        <p class="text-sm font-semibold text-white">Sessoes salvas</p>
+        <p class="mt-1 text-sm text-apollo-app-muted">
+          Clique duas vezes em uma sessao para abrir o chat em uma janela
+          separada.
+        </p>
       </div>
 
       <button
+        data-testid="clear-history-button"
+        class="rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        type="button"
+        :disabled="sessions.length === 0"
+        @click="emit('clear-history')"
+      >
+        Limpar historico
+      </button>
+    </div>
+
+    <div
+      v-if="errorText"
+      class="mx-5 mt-4 rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50"
+    >
+      {{ errorText }}
+    </div>
+
+    <ul class="divide-y divide-apollo-app-border">
+      <li
         v-for="session in sessions"
         :key="session.id"
-        class="w-full rounded-xl border px-4 py-3 text-left transition"
-        :class="
-          selectedSession?.id === session.id
-            ? 'border-apollo-app-selectedBorder bg-apollo-app-selected text-white'
-            : 'border-apollo-app-border bg-apollo-app-card text-slate-200 hover:border-apollo-app-selectedBorder hover:bg-apollo-app-hover'
-        "
-        type="button"
+        class="group grid gap-4 px-5 py-4 transition hover:bg-apollo-app-hover md:grid-cols-[minmax(0,1fr)_auto]"
+        :class="selectedSession?.id === session.id ? 'bg-apollo-app-hover' : ''"
+        data-testid="history-session"
         @click="selectSession(session.id)"
+        @dblclick="openSessionChat(session.id)"
       >
-        <p class="text-sm font-semibold">
-          {{ providerLabel(session.provider_kind) }}
-        </p>
-        <p class="mt-1 text-xs text-apollo-app-muted">
-          {{ session.model_key }} · {{ sourceLabel(session.source_kind) }}
-        </p>
-        <p
-          class="mt-2 max-h-10 overflow-hidden text-xs leading-5 text-slate-300"
+        <button
+          class="min-w-0 text-left"
+          type="button"
+          @click="selectSession(session.id)"
+          @dblclick.stop="openSessionChat(session.id)"
         >
-          {{
-            session.response_text ??
-            session.ocr_text ??
-            "Sem conteudo registrado."
-          }}
-        </p>
-      </button>
-    </aside>
-
-    <section class="space-y-5">
-      <template v-if="selectedSession">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">
-              Sessao selecionada
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-sm font-semibold text-white">
+              {{ providerLabel(session.provider_kind) }}
             </p>
-            <h3 class="mt-2 text-xl font-semibold text-white">
-              {{ providerLabel(selectedSession.provider_kind) }}
-            </h3>
-            <p class="mt-1 text-sm text-apollo-app-muted">
-              {{ selectedSession.model_key }} ·
-              {{ sourceLabel(selectedSession.source_kind) }}
-            </p>
-          </div>
-          <button
-            class="rounded-lg border border-apollo-app-border bg-apollo-app-card px-4 py-2 text-sm text-slate-100 transition hover:border-apollo-app-accent hover:text-white"
-            type="button"
-            @click="openHome"
-          >
-            Nova analise
-          </button>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <div
-            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
-          >
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">
-              OCR
-            </p>
-            <p
-              class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200"
-            >
-              {{ selectedSession.ocr_text ?? "Nao houve OCR persistido." }}
-            </p>
-          </div>
-          <div
-            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
-          >
-            <p class="text-xs font-medium text-apollo-app-muted uppercase">
-              Notas
-            </p>
-            <p
-              class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200"
-            >
-              {{ selectedSession.user_notes ?? "Sem notas adicionais." }}
-            </p>
-          </div>
-        </div>
-
-        <div
-          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
-        >
-          <p class="text-xs font-medium text-apollo-app-muted uppercase">
-            Prompt registrado
-          </p>
-          <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-            {{
-              selectedSession.request_prompt ??
-              "O prompt efetivo nao foi encontrado nesta sessao."
-            }}
-          </p>
-        </div>
-
-        <div
-          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
-        >
-          <p class="text-xs font-medium text-apollo-app-muted uppercase">
-            Resposta
-          </p>
-          <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-50">
-            {{ selectedSession.response_text ?? "Sem resposta persistida." }}
-          </p>
-        </div>
-
-        <div
-          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-white">Conversa continua</p>
-              <p class="mt-1 text-sm text-apollo-app-muted">
-                Use o historico persistido da sessao para seguir a conversa sem
-                perder contexto.
-              </p>
-            </div>
             <span
-              class="rounded-lg border border-apollo-app-border bg-apollo-app-shell px-3 py-1 text-xs text-apollo-app-muted"
+              class="rounded-full border border-apollo-app-border bg-apollo-app-shell px-2 py-0.5 text-[11px] text-apollo-app-muted"
             >
-              {{ conversationMessages.length }} turnos
+              {{ sourceLabel(session.source_kind) }}
             </span>
           </div>
 
-          <div class="mt-4 min-h-[24rem]">
-            <ConversationChat
-              :messages="chatMessages"
-              :loading="conversationLoading"
-              :error-text="conversationErrorText ?? continueErrorText"
-              :pending-user-message="pendingFollowUp"
-              :composer-value="continuePrompt"
-              :composer-disabled="continueLoading"
-              :composer-loading="continueLoading"
-              composer-placeholder="Ex.: aprofunde a nuance, reescreva em tom informal, compare com outra expressao."
-              composer-submit-label="Continuar conversa"
-              empty-text="Esta sessao ainda nao possui turnos adicionais persistidos."
-              show-composer
-              @update:composer-value="updateContinuePrompt"
-              @submit="submitFollowUp"
-            />
-          </div>
+          <p class="mt-1 text-xs text-apollo-app-muted">
+            {{ session.model_key }}
+          </p>
+          <p class="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
+            {{ sessionPreview(session) }}
+          </p>
+        </button>
+
+        <div class="flex items-center justify-end">
+          <button
+            data-testid="delete-session-button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-apollo-app-border text-apollo-app-muted transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-100"
+            :aria-label="`Excluir sessao ${session.id}`"
+            type="button"
+            @click.stop="deleteSession(session.id)"
+            @dblclick.stop
+          >
+            <Trash2 class="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
-      </template>
-    </section>
-  </div>
+      </li>
+    </ul>
+  </section>
 </template>

@@ -19,7 +19,7 @@ This domain owns persisted user preferences and the runtime behavior derived fro
 
 ## Implementation Notes
 
-- Provider and model dropdown behavior depends on the provider catalog exposed by the provider domain.
+- Provider, model, and reasoning effort controls feed the persisted `UserSettings` contract used by analysis requests.
 - Shortcut registration should fail safely: warn on invalid registrations, but keep the application responsive.
 - The frontend can format accelerators for display, but the backend decides what shortcut actually fired.
 - If you introduce new user preferences, update migrations, repository queries, Rust entities, and TypeScript interfaces in the same change.

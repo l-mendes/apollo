@@ -3,7 +3,9 @@ use std::{env, time::Duration};
 use crate::{
     application::errors::{ApplicationError, ApplicationErrorKind},
     domain::entities::configured_provider::ProviderKind,
-    infrastructure::providers::cli::executor::{CliCommandProfile, PromptMode},
+    infrastructure::providers::cli::executor::{
+        CliCommandProfile, PromptMode, ReasoningEffortArgument,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,9 +119,11 @@ pub fn default_cli_profiles() -> Vec<CliCommandProfile> {
         CliCommandProfile {
             provider_kind: ProviderKind::ClaudeCli,
             binary: env::var("APOLLO_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_string()),
-            args: vec!["-p".to_string()],
+            args: Vec::new(),
             availability_args: vec!["--version".to_string()],
-            prompt_mode: PromptMode::Argument,
+            model_flag: Some("--model".to_string()),
+            reasoning_effort_argument: Some(ReasoningEffortArgument::Flag("--effort".to_string())),
+            prompt_mode: PromptMode::ArgumentWithFlag("-p".to_string()),
             timeout: Duration::from_secs(60),
         },
         CliCommandProfile {
@@ -127,19 +131,21 @@ pub fn default_cli_profiles() -> Vec<CliCommandProfile> {
             binary: env::var("APOLLO_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_string()),
             args: vec!["exec".to_string(), "--skip-git-repo-check".to_string()],
             availability_args: vec!["--version".to_string()],
+            model_flag: Some("--model".to_string()),
+            reasoning_effort_argument: Some(ReasoningEffortArgument::CodexConfig),
             prompt_mode: PromptMode::Stdin,
             timeout: Duration::from_secs(60),
         },
         CliCommandProfile {
             provider_kind: ProviderKind::CopilotCli,
             binary: env::var("APOLLO_COPILOT_CLI_BINARY").unwrap_or_else(|_| "copilot".to_string()),
-            args: vec![
-                "--allow-all-tools".to_string(),
-                "--silent".to_string(),
-                "-p".to_string(),
-            ],
+            args: vec!["--allow-all-tools".to_string(), "--silent".to_string()],
             availability_args: vec!["--version".to_string()],
-            prompt_mode: PromptMode::Argument,
+            model_flag: Some("--model".to_string()),
+            reasoning_effort_argument: Some(ReasoningEffortArgument::Flag(
+                "--reasoning-effort".to_string(),
+            )),
+            prompt_mode: PromptMode::ArgumentWithFlag("-p".to_string()),
             timeout: Duration::from_secs(60),
         },
     ]
@@ -150,7 +156,7 @@ mod tests {
     use super::default_cli_profiles;
     use crate::{
         domain::entities::configured_provider::ProviderKind,
-        infrastructure::providers::cli::executor::PromptMode,
+        infrastructure::providers::cli::executor::{PromptMode, ReasoningEffortArgument},
     };
 
     #[test]
@@ -160,14 +166,20 @@ mod tests {
             .find(|profile| profile.provider_kind == ProviderKind::CopilotCli)
             .expect("copilot profile should exist");
 
-        assert_eq!(copilot.prompt_mode, PromptMode::Argument);
+        assert_eq!(
+            copilot.prompt_mode,
+            PromptMode::ArgumentWithFlag("-p".to_string())
+        );
+        assert_eq!(copilot.model_flag.as_deref(), Some("--model"));
+        assert_eq!(
+            copilot.reasoning_effort_argument,
+            Some(ReasoningEffortArgument::Flag(
+                "--reasoning-effort".to_string()
+            ))
+        );
         assert_eq!(
             copilot.args,
-            vec![
-                "--allow-all-tools".to_string(),
-                "--silent".to_string(),
-                "-p".to_string(),
-            ]
+            vec!["--allow-all-tools".to_string(), "--silent".to_string()]
         );
     }
 }

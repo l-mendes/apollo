@@ -2,13 +2,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::{
     entities::{configured_provider::ProviderKind, shortcut_binding::ShortcutBinding},
-    value_objects::model_key::ModelKey,
+    value_objects::{model_key::ModelKey, reasoning_effort::ReasoningEffort},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserSettings {
     pub preferred_provider: ProviderKind,
     pub preferred_model: ModelKey,
+    pub reasoning_effort: ReasoningEffort,
     pub base_prompt: String,
     /// Tesseract language code used for OCR (e.g. "por", "eng").
     pub ocr_language: String,
@@ -24,6 +25,7 @@ impl Default for UserSettings {
             preferred_provider: ProviderKind::OpenAi,
             preferred_model: ModelKey::new("gpt-4.1-mini")
                 .expect("default model key should be valid"),
+            reasoning_effort: ReasoningEffort::default(),
             base_prompt: "You are Apollo, a concise and context-aware language tutor. Explain meaning, nuance, grammar, and practical usage with short examples.".to_string(),
             ocr_language: "eng".to_string(),
             output_language: "Português".to_string(),

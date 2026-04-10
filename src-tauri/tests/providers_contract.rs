@@ -1,6 +1,8 @@
 mod support;
 
-use support::{ProviderChannel, ProviderFailureKind, ProviderKind, contract_harness, sample_request};
+use support::{
+    ProviderChannel, ProviderFailureKind, ProviderKind, contract_harness, sample_request,
+};
 
 #[test]
 fn http_providers_expose_non_empty_manually_managed_model_catalogs() {
@@ -24,6 +26,21 @@ fn http_providers_expose_non_empty_manually_managed_model_catalogs() {
                 .all(|model| model.channel == ProviderChannel::Http)
         );
     }
+}
+
+#[test]
+fn copilot_cli_catalog_includes_gpt_5_mini() {
+    let subject = contract_harness();
+
+    let models = subject
+        .list_models(ProviderKind::CopilotCli)
+        .expect("provider catalog should load");
+
+    assert!(models.iter().any(|model| {
+        model.model_id == "gpt-5-mini"
+            && model.manually_managed
+            && model.channel == ProviderChannel::Cli
+    }));
 }
 
 #[test]

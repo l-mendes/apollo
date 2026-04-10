@@ -11,8 +11,10 @@ vi.mock("@tauri-apps/api/core", () => ({
 import {
   analyzeCapture,
   captureScreenRegion,
+  clearHistory,
   commandErrorMessage,
   continueConversation,
+  deleteHistorySession,
   listHistory,
   loadConversationMessages,
   listProviderModelsFor,
@@ -34,6 +36,7 @@ describe("useApolloDesktop", () => {
     invokeMock.mockResolvedValue({
       preferred_provider: "OpenAi",
       preferred_model: "gpt-4.1-mini",
+      reasoning_effort: "medium",
       base_prompt: "prompt",
       shortcuts: []
     });
@@ -48,6 +51,7 @@ describe("useApolloDesktop", () => {
     const settings: UserSettings = {
       preferred_provider: "OpenAi",
       preferred_model: "gpt-4.1-mini",
+      reasoning_effort: "medium",
       base_prompt: "prompt",
       ocr_language: "por",
       output_language: "Português",
@@ -96,10 +100,23 @@ describe("useApolloDesktop", () => {
     });
   });
 
+  it("deletes a session and clears history using command payloads compatible with Rust", async () => {
+    invokeMock.mockResolvedValue(undefined);
+
+    await deleteHistorySession("session-1");
+    await clearHistory();
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "delete_history_session", {
+      sessionId: "session-1"
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "clear_history");
+  });
+
   it("sends analyze requests with the normalized payload expected by the backend", async () => {
     const request: AnalyzeCaptureRequest = {
       provider_kind: "OpenAi",
       model_key: "gpt-4.1-mini",
+      reasoning_effort: "medium",
       base_prompt: "Explain briefly.",
       ocr_text: "A sample sentence.",
       user_notes: "Focus on nuance.",
@@ -122,6 +139,7 @@ describe("useApolloDesktop", () => {
       session_id: "session-1",
       provider_kind: "OpenAi",
       model_key: "gpt-4.1-mini",
+      reasoning_effort: "medium",
       prompt: "Give me two more examples.",
       existing_messages: []
     };

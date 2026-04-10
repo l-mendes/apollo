@@ -25,6 +25,7 @@ use apollo::{
         value_objects::{
             identifiers::{MessageId, SessionId},
             model_key::ModelKey,
+            reasoning_effort::ReasoningEffort,
         },
     },
     infrastructure::{
@@ -171,6 +172,7 @@ fn analyze_capture_service_composes_prompt_and_persists_session_history() {
             .execute(AnalyzeCaptureRequest {
                 provider_kind: ProviderKind::OpenAi,
                 model_key: ModelKey::new("gpt-4.1-mini").expect("model key should be valid"),
+                reasoning_effort: ReasoningEffort::Medium,
                 base_prompt: "Act as a language tutor.".to_string(),
                 ocr_text: "I have been looking forward to this trip for ages.".to_string(),
                 user_notes: Some("Explain the nuance of looking forward to.".to_string()),
@@ -179,10 +181,11 @@ fn analyze_capture_service_composes_prompt_and_persists_session_history() {
             .await
             .expect("analysis should succeed");
 
-        let conversation = apollo::application::ports::repositories::ConversationRepository::load_by_session(
-            repository.as_ref(),
-            &response.session.id,
-        )
+        let conversation =
+            apollo::application::ports::repositories::ConversationRepository::load_by_session(
+                repository.as_ref(),
+                &response.session.id,
+            )
             .await
             .expect("conversation should load");
 
@@ -251,9 +254,9 @@ fn continue_conversation_service_appends_follow_up_and_response() {
             &apollo::domain::entities::interaction_session::InteractionSession {
                 id: session_id.clone(),
                 provider_kind: ProviderKind::Anthropic,
-                model_key: ModelKey::new("claude-3-7-sonnet")
-                    .expect("model key should be valid"),
-                source_kind: apollo::domain::entities::interaction_session::AnalysisSourceKind::ManualText,
+                model_key: ModelKey::new("claude-3-7-sonnet").expect("model key should be valid"),
+                source_kind:
+                    apollo::domain::entities::interaction_session::AnalysisSourceKind::ManualText,
                 ocr_text: None,
                 user_notes: Some("Explain made up her mind.".to_string()),
                 request_prompt: Some("Explain made up her mind.".to_string()),
@@ -268,8 +271,8 @@ fn continue_conversation_service_appends_follow_up_and_response() {
                 repository.as_ref(),
                 entry,
             )
-                .await
-                .expect("existing messages should persist");
+            .await
+            .expect("existing messages should persist");
         }
 
         let response = service
@@ -277,16 +280,18 @@ fn continue_conversation_service_appends_follow_up_and_response() {
                 session_id: session_id.clone(),
                 provider_kind: ProviderKind::Anthropic,
                 model_key: ModelKey::new("claude-3-7-sonnet").expect("model key should be valid"),
+                reasoning_effort: ReasoningEffort::Medium,
                 prompt: "Give me two more casual examples.".to_string(),
                 existing_messages: existing_messages.clone(),
             })
             .await
             .expect("conversation should continue");
 
-        let conversation = apollo::application::ports::repositories::ConversationRepository::load_by_session(
-            repository.as_ref(),
-            &session_id,
-        )
+        let conversation =
+            apollo::application::ports::repositories::ConversationRepository::load_by_session(
+                repository.as_ref(),
+                &session_id,
+            )
             .await
             .expect("conversation should load");
 

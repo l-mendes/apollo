@@ -12,6 +12,7 @@ import type {
   ConversationMessage,
   NormalizedResponse,
   ProviderKind,
+  ReasoningEffort,
   SurfaceId
 } from "@/composables/useApolloDesktop";
 
@@ -387,6 +388,7 @@ export interface ResponseUpdatePayload {
   session_id: string;
   provider_kind: ProviderKind;
   model_key: string;
+  reasoning_effort: ReasoningEffort;
   display_messages: Array<{
     id: string;
     role: "assistant" | "system" | "user";
@@ -564,6 +566,15 @@ export async function emitToResponseWindow(
   try {
     const win = await WebviewWindow.getByLabel(RESPONSE_WINDOW_LABEL);
     await win?.emit(RESPONSE_UPDATE_EVENT, payload);
+  } catch {
+    // noop in web mode
+  }
+}
+
+export async function hideResponseWindow(): Promise<void> {
+  try {
+    const win = await WebviewWindow.getByLabel(RESPONSE_WINDOW_LABEL);
+    await win?.hide();
   } catch {
     // noop in web mode
   }

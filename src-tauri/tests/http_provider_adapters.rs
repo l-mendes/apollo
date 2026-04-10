@@ -9,7 +9,10 @@ use apollo::{
         errors::{ApplicationError, ApplicationErrorKind},
         ports::provider::AiProvider,
     },
-    domain::{entities::configured_provider::ProviderKind, value_objects::model_key::ModelKey},
+    domain::{
+        entities::configured_provider::ProviderKind,
+        value_objects::{model_key::ModelKey, reasoning_effort::ReasoningEffort},
+    },
     infrastructure::providers::http::{
         adapters::{AnthropicProvider, OllamaProvider, OpenAiProvider},
         transport::{HttpRequest, HttpResponse, HttpTransport},
@@ -66,6 +69,7 @@ fn request(provider_kind: ProviderKind, model_key: &str) -> AnalyzeCaptureReques
     AnalyzeCaptureRequest {
         provider_kind,
         model_key: ModelKey::new(model_key).expect("model key should be valid"),
+        reasoning_effort: ReasoningEffort::High,
         base_prompt: "Explain this idiom with nuance.".to_string(),
         ocr_text: "She made up her mind.".to_string(),
         user_notes: Some("Use two examples.".to_string()),
@@ -118,6 +122,7 @@ fn openai_adapter_normalizes_responses_api_output() {
         let requests = transport.take_requests();
         assert_eq!(requests.len(), 1);
         assert!(requests[0].url.contains("/v1/responses"));
+        assert_eq!(requests[0].body["reasoning"]["effort"], "high");
         assert_eq!(
             requests[0]
                 .headers

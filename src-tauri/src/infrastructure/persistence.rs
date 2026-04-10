@@ -22,6 +22,7 @@ use crate::{
         value_objects::{
             identifiers::{MessageId, SessionId},
             model_key::ModelKey,
+            reasoning_effort::ReasoningEffort,
             shortcut::{ShortcutAccelerator, ShortcutAction},
         },
     },
@@ -90,7 +91,7 @@ impl SettingsRepository for SqliteAppRepository {
         let connection = self.open_connection()?;
         let row = connection
             .query_row(
-                "SELECT preferred_provider_id, preferred_model_id, base_prompt, ocr_language, output_language FROM user_settings WHERE id = 1",
+                "SELECT preferred_provider_id, preferred_model_id, base_prompt, ocr_language, output_language, reasoning_effort FROM user_settings WHERE id = 1",
                 [],
                 |row| {
                     Ok((
@@ -99,6 +100,7 @@ impl SettingsRepository for SqliteAppRepository {
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
                     ))
                 },
             )
@@ -109,7 +111,14 @@ impl SettingsRepository for SqliteAppRepository {
         let defaults = UserSettings::default();
 
         match row {
-            Some((preferred_provider, preferred_model, base_prompt, ocr_language, output_language)) => Ok(UserSettings {
+            Some((
+                preferred_provider,
+                preferred_model,
+                base_prompt,
+                ocr_language,
+                output_language,
+                reasoning_effort,
+            )) => Ok(UserSettings {
                 preferred_provider: preferred_provider
                     .as_deref()
                     .unwrap_or(defaults.preferred_provider.as_str())
@@ -119,6 +128,11 @@ impl SettingsRepository for SqliteAppRepository {
                     preferred_model
                         .unwrap_or_else(|| defaults.preferred_model.as_str().to_string()),
                 )?,
+                reasoning_effort: reasoning_effort
+                    .as_deref()
+                    .unwrap_or(defaults.reasoning_effort.as_str())
+                    .parse::<ReasoningEffort>()
+                    .map_err(invalid_configuration)?,
                 base_prompt,
                 ocr_language: ocr_language.unwrap_or(defaults.ocr_language),
                 output_language: output_language.unwrap_or(defaults.output_language),
@@ -145,14 +159,16 @@ impl SettingsRepository for SqliteAppRepository {
                     preferred_model_id,
                     ocr_language,
                     output_language,
+                    reasoning_effort,
                     updated_at
-                ) VALUES (1, ?1, ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP)
+                ) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP)
                 ON CONFLICT(id) DO UPDATE SET
                     base_prompt = excluded.base_prompt,
                     preferred_provider_id = excluded.preferred_provider_id,
                     preferred_model_id = excluded.preferred_model_id,
                     ocr_language = excluded.ocr_language,
                     output_language = excluded.output_language,
+                    reasoning_effort = excluded.reasoning_effort,
                     updated_at = CURRENT_TIMESTAMP",
                 params![
                     settings.base_prompt.as_str(),
@@ -160,6 +176,7 @@ impl SettingsRepository for SqliteAppRepository {
                     settings.preferred_model.as_str(),
                     settings.ocr_language.as_str(),
                     settings.output_language.as_str(),
+                    settings.reasoning_effort.as_str(),
                 ],
             )
             .map_err(map_sqlite_error)?;
@@ -279,6 +296,42 @@ impl HistoryRepository for SqliteAppRepository {
                 })
             })
             .collect()
+    }
+
+    async fn delete_session(&self, session_id: &SessionId) -> Result<(), ApplicationError> {
+        let mut connection = self.open_connection()?;
+        let transaction = connection.transaction().map_err(map_sqlite_error)?;
+
+        transaction
+            .execute(
+                "DELETE FROM conversation_messages WHERE session_id = ?1",
+                params![session_id.as_str()],
+            )
+            .map_err(map_sqlite_error)?;
+        transaction
+            .execute(
+                "DELETE FROM interaction_sessions WHERE id = ?1",
+                params![session_id.as_str()],
+            )
+            .map_err(map_sqlite_error)?;
+        transaction.commit().map_err(map_sqlite_error)?;
+
+        Ok(())
+    }
+
+    async fn clear_sessions(&self) -> Result<(), ApplicationError> {
+        let mut connection = self.open_connection()?;
+        let transaction = connection.transaction().map_err(map_sqlite_error)?;
+
+        transaction
+            .execute("DELETE FROM conversation_messages", [])
+            .map_err(map_sqlite_error)?;
+        transaction
+            .execute("DELETE FROM interaction_sessions", [])
+            .map_err(map_sqlite_error)?;
+        transaction.commit().map_err(map_sqlite_error)?;
+
+        Ok(())
     }
 }
 

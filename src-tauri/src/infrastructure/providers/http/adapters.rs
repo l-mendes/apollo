@@ -140,6 +140,9 @@ impl AiProvider for OpenAiProvider {
             headers: self.profile.headers()?,
             body: json!({
                 "model": request.model_key.as_str(),
+                "reasoning": {
+                    "effort": request.reasoning_effort.as_str()
+                },
                 "input": request.base_prompt,
             }),
             timeout: self.profile.timeout,

@@ -49,6 +49,7 @@ describe("SettingsSurface", () => {
       saved: {
         preferred_provider: "OpenAi",
         preferred_model: "gpt-4.1-mini",
+        reasoning_effort: "medium",
         base_prompt: "Explain meaning and usage.",
         ocr_language: "por",
         output_language: "Português",
@@ -63,6 +64,7 @@ describe("SettingsSurface", () => {
       draft: {
         preferred_provider: "OpenAi",
         preferred_model: "gpt-4.1-mini",
+        reasoning_effort: "medium",
         base_prompt: "Explain meaning and usage.",
         ocr_language: "por",
         output_language: "Português",
@@ -78,10 +80,15 @@ describe("SettingsSurface", () => {
     await nextTick();
 
     await wrapper.find("textarea").setValue("Updated prompt");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("High"))
+      ?.trigger("click");
     await wrapper.find("button").trigger("click");
 
     expect(wrapper.find('[data-testid="settings-ready"]').exists()).toBe(true);
     expect(store.state.settings.draft?.base_prompt).toBe("Updated prompt");
+    expect(store.state.settings.draft?.reasoning_effort).toBe("high");
     expect(wrapper.emitted("save")).toHaveLength(1);
   });
 });

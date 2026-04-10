@@ -12,6 +12,7 @@ export const PROVIDER_OPTIONS = [
 
 export type ProviderKind = (typeof PROVIDER_OPTIONS)[number]["kind"];
 export type ProviderChannel = "Http" | "Cli";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type AnalysisSourceKind = "ScreenCapture" | "ManualText" | "FileImport";
 export type SurfaceId = "none" | "home" | "history" | "settings";
 
@@ -24,6 +25,7 @@ export interface ShortcutBinding {
 export interface UserSettings {
   preferred_provider: ProviderKind;
   preferred_model: string;
+  reasoning_effort: ReasoningEffort;
   base_prompt: string;
   /** Tesseract language code used for OCR (e.g. "por", "eng"). */
   ocr_language: string;
@@ -69,6 +71,7 @@ export interface NormalizedResponse {
 export interface AnalyzeCaptureRequest {
   provider_kind: ProviderKind;
   model_key: string;
+  reasoning_effort: ReasoningEffort;
   base_prompt: string;
   ocr_text: string;
   user_notes: string | null;
@@ -85,6 +88,7 @@ export interface ContinueConversationRequest {
   session_id: string;
   provider_kind: ProviderKind;
   model_key: string;
+  reasoning_effort: ReasoningEffort;
   prompt: string;
   existing_messages: ConversationMessage[];
 }
@@ -177,6 +181,14 @@ export async function loadConversationMessages(
   return invoke<ConversationMessage[]>("load_conversation_messages", {
     sessionId
   });
+}
+
+export async function deleteHistorySession(sessionId: string): Promise<void> {
+  await invoke("delete_history_session", { sessionId });
+}
+
+export async function clearHistory(): Promise<void> {
+  await invoke("clear_history");
 }
 
 export async function listProviderModelsFor(

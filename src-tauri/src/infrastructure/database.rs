@@ -52,6 +52,14 @@ mod tests {
 
         assert!(temp_dir.path().join("apollo.db").exists());
         assert!(snapshot.database_ready());
-        assert_eq!(snapshot.applied_migrations, vec!["0001_initial_schema", "0002_language_settings", "0003_default_ocr_language_eng"]);
+        assert_eq!(
+            snapshot.applied_migrations,
+            vec![
+                "0001_initial_schema",
+                "0002_language_settings",
+                "0003_default_ocr_language_eng",
+                "0004_reasoning_effort_settings"
+            ]
+        );
     }
 }

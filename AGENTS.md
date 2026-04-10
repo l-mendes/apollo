@@ -1,93 +1,98 @@
 # AGENTS.md
 
-## Missao
+## Mission
 
-Manter o Apollo evoluindo, sempre priorizando clareza arquitetural, TDD e baixo acoplamento.
-Manter este arquivo e as skills objetivas e atualizadas para garantir alinhamento e autonomia.
+Keep Apollo evolving with architectural clarity, TDD, and low coupling as the default.
+Keep this file and the impacted skills concise and up to date so contributors stay aligned and autonomous.
 
-## Fonte de contexto
+## Source Of Truth
 
-- `AGENTS.md` e a fonte canonica de contexto do projeto.
-- Nao usamos mais fluxo de desenvolvimento guiado por fases.
-- Novas funcionalidades nao exigem gerar documentacao por fase.
-- Quando a arquitetura, os fluxos principais ou as invariantes do produto mudarem, atualize este arquivo e apenas as skills impactadas.
+- `AGENTS.md` is the canonical shared context for this project.
+- We no longer use a phase-driven development workflow.
+- New features do not require per-phase documentation.
+- Shared documentation in this repository should be written in English.
+- When architecture, core flows, or product invariants change, update this file and only the impacted skills.
 
-## Resumo do sistema
+## System Summary
 
-Apollo e um app desktop cross-platform em Tauri para apoio ao estudo de idiomas com captura contextual de tela, OCR, analise por IA e historico local de conversas.
+Apollo is a cross-platform Tauri desktop app that helps with language study through contextual screen capture, OCR, AI analysis, and local conversation history.
 
-Fluxo principal atual:
+Current main flow:
 
-- a tray window e a ancora da experiencia desktop;
-- o usuario captura uma regiao da tela;
-- o backend extrai texto via OCR;
-- os casos de uso montam o prompt com configuracao base, OCR, notas e contexto anterior;
-- o provider selecionado responde por HTTP ou CLI;
-- sessoes e mensagens ficam persistidas em SQLite;
-- a UI permite revisar historico e continuar a conversa reaproveitando a mesma sessao, provider e modelo.
+- the tray window is the anchor of the desktop experience;
+- the user captures a region of the screen;
+- the backend extracts text through OCR;
+- use cases build the prompt from the base configuration, OCR output, user notes, and prior context;
+- the selected provider answers through HTTP or CLI;
+- sessions and messages are persisted in SQLite;
+- the UI lets the user review history and continue the conversation with the same session, provider, and model.
 
-## Stack e runtime
+## Stack And Runtime
 
-- Tauri 2 para shell desktop e comandos nativos.
-- Rust 2024 no backend.
-- Vue 3 + TypeScript no frontend.
-- TailwindCSS na camada visual.
-- SQLite com migrations versionadas para persistencia local.
-- `tracing` para logging estruturado local.
+- Tauri 2 for the desktop shell and native commands.
+- Rust 2024 in the backend.
+- Vue 3 + TypeScript in the frontend.
+- TailwindCSS in the visual layer.
+- `xcap` for native per-monitor screen capture.
+- SQLite with versioned migrations for local persistence.
+- `tracing` for structured local logging.
 
-## Arquitetura
+## Architecture
 
-- `src-tauri/src/domain`: entidades, value objects e regras puras.
-- `src-tauri/src/application`: casos de uso, DTOs, estado e contratos.
-- `src-tauri/src/infrastructure`: SQLite, filesystem, OCR, providers HTTP/CLI, logging e paths.
-- `src-tauri/src/commands`: fronteira Tauri exposta ao frontend.
-- `src`: UI Vue, composables e componentes.
+- `src-tauri/src/domain`: entities, value objects, and pure rules.
+- `src-tauri/src/application`: use cases, DTOs, state, and contracts.
+- `src-tauri/src/infrastructure`: SQLite, filesystem, OCR, HTTP and CLI providers, logging, and paths.
+- `src-tauri/src/commands`: Tauri-facing command boundary exposed to the frontend.
+- `src`: Vue UI, composables, and components.
 
-## Fronteiras e invariantes
+## Boundaries And Invariants
 
-- Toda integracao com provider de IA, OCR ou CLI entra por contrato e adapter.
-- Casos de uso dependem de ports; detalhes de transporte, processo, banco e filesystem ficam em `infrastructure`.
-- A UI nao conhece detalhes de provider, OCR ou persistencia; ela conversa com o backend por comandos Tauri e composables.
-- `useWindowShell.ts` concentra coordenacao entre janelas e eventos de shell.
-- A tray continua sendo a janela ancora.
-- A janela principal deve esconder ao fechar, nao encerrar a app.
-- Follow-ups devem reutilizar a sessao original, o provider e o modelo da conversa.
-- Mensagens de conversa devem ser carregadas em ordem de criacao.
+- Every AI provider, OCR, or CLI integration must enter through a contract and adapter.
+- Use cases depend on ports; transport, process, database, and filesystem details stay in `infrastructure`.
+- The UI must not know provider, OCR, or persistence details; it talks to the backend through Tauri commands and composables.
+- `useWindowShell.ts` owns window coordination and shell events.
+- The tray remains the anchor window.
+- The main window should hide on close instead of terminating the app.
+- Area capture uses a transparent overlay window on the active monitor, with selection geometry resolved in the frontend and the rectangle sent to the backend.
+- The backend captures the full monitor image through `xcap` and crops the chosen region locally to avoid logical-versus-physical coordinate drift.
+- The selection overlay must disappear visually before capture so preview images never include borders, backdrop tint, or helper hints.
+- Follow-ups must reuse the original session, provider, and model.
+- Conversation messages must load in creation order.
 
-## Persistencia e dados principais
+## Persistence And Core Data
 
-- Configuracoes do usuario, atalhos, sessoes, mensagens e metadados de captura vivem em SQLite local.
-- O bootstrap da app prepara banco, executa migrations e monta o `AppState`.
-- O catalogo manual de providers/modelos fica em `src-tauri/resources/provider-models.json`.
-- Mudancas de contrato entre Rust e frontend devem atualizar DTOs e interfaces TypeScript no mesmo fluxo.
+- User settings, shortcuts, sessions, messages, and capture metadata live in local SQLite.
+- App bootstrap prepares the database, runs migrations, and builds `AppState`.
+- The manual provider and model catalog lives in `src-tauri/resources/provider-models.json`.
+- Contract changes between Rust and the frontend must update Rust DTOs and TypeScript interfaces in the same flow.
 
-## Regras de colaboracao
+## Collaboration Rules
 
-- Iniciar novas features com objetivo e criterio de aceite.
-- Comecar pelo teste quando houver comportamento novo no backend Rust.
-- Preservar a separacao entre `domain`, `application`, `infrastructure` e `presentation`.
-- Toda integracao com provider de IA, OCR ou CLI deve entrar por contrato e adapter.
-- Atualizar `AGENTS.md` e as skills impactadas apenas quando o contexto real do sistema mudar.
+- Start new features with a clear objective and acceptance criteria.
+- Start with tests when backend Rust behavior changes.
+- Preserve the separation between `domain`, `application`, `infrastructure`, and `presentation`.
+- Every AI provider, OCR, or CLI integration must enter through a contract and adapter.
+- Update `AGENTS.md` and the impacted skills only when the shared system context actually changes.
 
-## Estrategia de testes
+## Testing Strategy
 
-- Backend Rust: priorizar TDD para comportamento novo ou alterado.
-- `src-tauri/tests/`: contratos, integracao e fluxos do backend.
-- `tests/unit/`: comportamento de UI, composables e coordenacao de janelas com Vitest.
-- Alteracoes de prompt, historico, providers, OCR, settings ou janelas devem vir acompanhadas dos testes mais proximos ao contrato afetado.
+- Backend Rust: prefer TDD for new or changed behavior.
+- `src-tauri/tests/`: backend contracts, integration, and workflow coverage.
+- `tests/unit/`: UI, composable, and window-coordination behavior with Vitest.
+- Changes to prompts, history, providers, OCR, settings, capture, or windows should include the tests closest to the affected contract.
 
-## Limites por camada
+## Layer Limits
 
-- `src-tauri/src/domain`: entidades, value objects e regras puras.
-- `src-tauri/src/application`: casos de uso, orchestrators e contratos de entrada/saida.
-- `src-tauri/src/infrastructure`: SQLite, files, Tesseract, execucao de CLI, HTTP e logging.
-- `src`: UI Vue, composables e componentes.
-- `src-tauri`: composicao da aplicacao e comandos Tauri.
+- `src-tauri/src/domain`: entities, value objects, and pure rules.
+- `src-tauri/src/application`: use cases, orchestrators, and input-output contracts.
+- `src-tauri/src/infrastructure`: SQLite, files, Tesseract, CLI execution, HTTP, and logging.
+- `src`: Vue UI, composables, and components.
+- `src-tauri`: app composition and Tauri commands.
 
-## Padrao de entrega
+## Delivery Pattern
 
-1. Confirmar objetivo e criterio de aceite.
-2. Escrever ou ajustar testes.
-3. Implementar o minimo para passar.
-4. Refatorar mantendo o contrato.
-5. Atualizar a documentacao objetiva somente se o contexto compartilhado do sistema tiver mudado.
+1. Confirm the objective and acceptance criteria.
+2. Write or adjust tests.
+3. Implement the minimum needed to pass.
+4. Refactor while preserving the contract.
+5. Update concise documentation only when the shared system context has changed.

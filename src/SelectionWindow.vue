@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { buildSelectionPayload } from "@/composables/selectionGeometry";
 import {
@@ -9,14 +9,19 @@ import {
 } from "@/composables/useWindowShell";
 
 const isDragging = ref(false);
+const overlayVisible = ref(true);
 const startX = ref(0);
 const startY = ref(0);
 const currentX = ref(0);
 const currentY = ref(0);
+const startScreenX = ref(0);
+const startScreenY = ref(0);
 const selectionRoot = ref<HTMLElement | null>(null);
 const monitorGeometry = ref({
   positionX: 0,
   positionY: 0,
+  width: window.innerWidth,
+  height: window.innerHeight,
   scaleFactor: 1
 });
 
@@ -41,14 +46,28 @@ const selectionDimensionsLabel = computed(() => {
   return `${width} × ${height}`;
 });
 
+function waitForNextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function hideSelectionOverlay() {
+  overlayVisible.value = false;
+  await nextTick();
+  await waitForNextFrame();
+  await waitForNextFrame();
+}
+
 function onMouseDown(event: MouseEvent) {
   if (event.button !== 0) return;
+  overlayVisible.value = true;
   void loadCursorMonitorGeometry();
   isDragging.value = true;
   startX.value = event.clientX;
   startY.value = event.clientY;
   currentX.value = event.clientX;
   currentY.value = event.clientY;
+  startScreenX.value = event.screenX;
+  startScreenY.value = event.screenY;
 }
 
 function onMouseMove(event: MouseEvent) {
@@ -71,24 +90,30 @@ async function onMouseUp(event: MouseEvent) {
   }
 
   await loadCursorMonitorGeometry();
+  await hideSelectionOverlay();
 
   const payload = buildSelectionPayload({
     startX: startX.value,
     startY: startY.value,
     endX: event.clientX,
     endY: event.clientY,
+    startScreenX: startScreenX.value,
+    startScreenY: startScreenY.value,
+    endScreenX: event.screenX,
+    endScreenY: event.screenY,
     monitor: monitorGeometry.value
   });
 
   // Hide before emitting so the overlay does not show up in the capture.
   await hideCurrentWindow();
   // Give the compositor a frame to redraw without the overlay.
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await new Promise((resolve) => setTimeout(resolve, 120));
   await emitSelectionResult(payload);
 }
 
 async function cancel() {
   isDragging.value = false;
+  await hideSelectionOverlay();
   await hideCurrentWindow();
   await emitSelectionCancelled();
 }
@@ -113,6 +138,8 @@ async function loadCurrentMonitorGeometry() {
     monitorGeometry.value = {
       positionX: monitor.position.x,
       positionY: monitor.position.y,
+      width: monitor.size.width,
+      height: monitor.size.height,
       scaleFactor: monitor.scaleFactor || 1
     };
   } catch {
@@ -140,6 +167,8 @@ async function loadCursorMonitorGeometry() {
     monitorGeometry.value = {
       positionX: monitor.position.x,
       positionY: monitor.position.y,
+      width: monitor.size.width,
+      height: monitor.size.height,
       scaleFactor: monitor.scaleFactor || 1
     };
   } catch {
@@ -181,14 +210,14 @@ onBeforeUnmount(() => {
     <div class="apollo-selection-backdrop" />
 
     <div
-      v-if="isDragging"
+      v-if="isDragging && overlayVisible"
       class="apollo-selection-rect"
       :style="selectionStyle"
     >
       <span class="apollo-selection-label">{{ selectionDimensionsLabel }}</span>
     </div>
 
-    <div class="apollo-selection-hint">
+    <div v-if="overlayVisible" class="apollo-selection-hint">
       Arraste para selecionar uma área &nbsp;·&nbsp; Esc para cancelar
     </div>
   </div>

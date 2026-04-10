@@ -13,6 +13,7 @@ import {
   commandErrorMessage,
   continueConversation,
   createEmptyProviderCatalog,
+  type CaptureRegionRequest,
   type InteractionSession,
   listHistory,
   listProviderModelsFor,
@@ -573,12 +574,7 @@ async function handleCapture() {
   }
 }
 
-async function handleSelectionResult(rect: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}) {
+async function handleSelectionResult(rect: CaptureRegionRequest) {
   try {
     const result = await captureScreenRegion(rect);
     store.commit("patchAnalysisState", {

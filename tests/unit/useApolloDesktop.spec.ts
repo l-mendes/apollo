@@ -10,14 +10,17 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import {
   analyzeCapture,
+  captureScreenRegion,
   commandErrorMessage,
   continueConversation,
   listHistory,
   loadConversationMessages,
   listProviderModelsFor,
   loadSettings,
+  runOcrOnImage,
   saveSettings,
   type AnalyzeCaptureRequest,
+  type CaptureRegionRequest,
   type ContinueConversationRequest,
   type UserSettings
 } from "@/composables/useApolloDesktop";
@@ -133,6 +136,45 @@ describe("useApolloDesktop", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("continue_conversation", {
       request
+    });
+  });
+
+  it("sends capture region and OCR requests with the payload expected by the backend", async () => {
+    const request: CaptureRegionRequest = {
+      logical_x: 2020,
+      logical_y: 40,
+      logical_width: 320,
+      logical_height: 200,
+      physical_x: 4040,
+      physical_y: 80,
+      physical_width: 640,
+      physical_height: 400,
+      monitor_logical_x: 1920,
+      monitor_logical_y: 0,
+      monitor_logical_width: 1920,
+      monitor_logical_height: 1080,
+      monitor_physical_x: 3840,
+      monitor_physical_y: 0,
+      monitor_physical_width: 3840,
+      monitor_physical_height: 2160
+    };
+
+    invokeMock.mockResolvedValueOnce({
+      image_path: "/tmp/apollo-region.png",
+      width: 640,
+      height: 400,
+      data_url: "data:image/png;base64,abc"
+    });
+    invokeMock.mockResolvedValueOnce("texto extraido");
+
+    await captureScreenRegion(request);
+    await runOcrOnImage("/tmp/apollo-region.png", "por");
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "capture_screen_region", {
+      request
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "run_ocr_on_image", {
+      request: { image_path: "/tmp/apollo-region.png", ocr_language: "por" }
     });
   });
 

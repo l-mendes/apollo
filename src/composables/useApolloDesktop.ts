@@ -206,10 +206,22 @@ export async function triggerScreenCapture(): Promise<string> {
 }
 
 export interface CaptureRegionRequest {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  logical_x: number;
+  logical_y: number;
+  logical_width: number;
+  logical_height: number;
+  physical_x: number;
+  physical_y: number;
+  physical_width: number;
+  physical_height: number;
+  monitor_logical_x: number;
+  monitor_logical_y: number;
+  monitor_logical_width: number;
+  monitor_logical_height: number;
+  monitor_physical_x: number;
+  monitor_physical_y: number;
+  monitor_physical_width: number;
+  monitor_physical_height: number;
 }
 
 export interface CaptureRegionResponse {

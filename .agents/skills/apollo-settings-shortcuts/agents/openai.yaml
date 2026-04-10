@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Settings Shortcuts"
+  short_description: "Preferences and global shortcut flows"
+  default_prompt: "Use $apollo-settings-shortcuts to change Apollo user settings, provider preferences, or global shortcuts."

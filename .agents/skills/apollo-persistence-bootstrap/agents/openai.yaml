@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Persistence Bootstrap"
+  short_description: "SQLite bootstrap and runtime state"
+  default_prompt: "Use $apollo-persistence-bootstrap to work on Apollo SQLite persistence, migrations, bootstrap, or app state."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Window UI Shell"
+  short_description: "Multi-window Vue and Tauri shell"
+  default_prompt: "Use $apollo-window-ui-shell to work on Apollo tray, app, preview, response, or selection windows."

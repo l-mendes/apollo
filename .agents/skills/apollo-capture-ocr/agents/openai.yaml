@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Capture OCR"
+  short_description: "Screen capture and OCR workflow"
+  default_prompt: "Use $apollo-capture-ocr to work on Apollo screen capture, selection overlay, or OCR flows."

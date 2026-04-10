@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Provider Integrations"
+  short_description: "HTTP CLI providers and models"
+  default_prompt: "Use $apollo-provider-integrations to update Apollo provider adapters, runtime profiles, or model resolution."

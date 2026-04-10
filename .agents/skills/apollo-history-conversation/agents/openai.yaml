@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo History Conversation"
+  short_description: "Sessions, messages, and follow-ups"
+  default_prompt: "Use $apollo-history-conversation to work on Apollo session history, conversation loading, or follow-up flows."

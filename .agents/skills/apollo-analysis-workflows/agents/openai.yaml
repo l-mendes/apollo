@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apollo Analysis Workflows"
+  short_description: "Prompt orchestration and analysis"
+  default_prompt: "Use $apollo-analysis-workflows to change Apollo analysis prompts, orchestration, or response flows."

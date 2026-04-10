@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollo_desktop::{
+use apollo::{
     application::{
         dto::analysis::{
             AnalyzeCaptureRequest, ContinueConversationRequest, ListProviderModelsRequest,
@@ -179,7 +179,7 @@ fn analyze_capture_service_composes_prompt_and_persists_session_history() {
             .await
             .expect("analysis should succeed");
 
-        let conversation = apollo_desktop::application::ports::repositories::ConversationRepository::load_by_session(
+        let conversation = apollo::application::ports::repositories::ConversationRepository::load_by_session(
             repository.as_ref(),
             &response.session.id,
         )
@@ -246,14 +246,14 @@ fn continue_conversation_service_appends_follow_up_and_response() {
             ),
         ];
 
-        apollo_desktop::application::ports::repositories::HistoryRepository::save_session(
+        apollo::application::ports::repositories::HistoryRepository::save_session(
             repository.as_ref(),
-            &apollo_desktop::domain::entities::interaction_session::InteractionSession {
+            &apollo::domain::entities::interaction_session::InteractionSession {
                 id: session_id.clone(),
                 provider_kind: ProviderKind::Anthropic,
                 model_key: ModelKey::new("claude-3-7-sonnet")
                     .expect("model key should be valid"),
-                source_kind: apollo_desktop::domain::entities::interaction_session::AnalysisSourceKind::ManualText,
+                source_kind: apollo::domain::entities::interaction_session::AnalysisSourceKind::ManualText,
                 ocr_text: None,
                 user_notes: Some("Explain made up her mind.".to_string()),
                 request_prompt: Some("Explain made up her mind.".to_string()),
@@ -264,7 +264,7 @@ fn continue_conversation_service_appends_follow_up_and_response() {
         .expect("session should persist");
 
         for entry in &existing_messages {
-            apollo_desktop::application::ports::repositories::ConversationRepository::append_message(
+            apollo::application::ports::repositories::ConversationRepository::append_message(
                 repository.as_ref(),
                 entry,
             )
@@ -283,7 +283,7 @@ fn continue_conversation_service_appends_follow_up_and_response() {
             .await
             .expect("conversation should continue");
 
-        let conversation = apollo_desktop::application::ports::repositories::ConversationRepository::load_by_session(
+        let conversation = apollo::application::ports::repositories::ConversationRepository::load_by_session(
             repository.as_ref(),
             &session_id,
         )

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use apollo_desktop::{
+use apollo::{
     application::{
         dto::analysis::AnalyzeCaptureRequest,
         errors::{ApplicationError, ApplicationErrorKind},

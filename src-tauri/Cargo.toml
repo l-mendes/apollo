@@ -1,13 +1,13 @@
 [package]
-name = "apollo-desktop"
+name = "apollo"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["Apollo Maintainers"]
-default-run = "apollo-desktop"
+default-run = "apollo"
 
 [lib]
-name = "apollo_desktop"
+name = "apollo"
 crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]

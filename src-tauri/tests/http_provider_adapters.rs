@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use apollo_desktop::{
+use apollo::{
     application::{
         dto::analysis::{AnalyzeCaptureRequest, NormalizedResponse},
         errors::{ApplicationError, ApplicationErrorKind},

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollo_desktop::{
+use apollo::{
     application::ports::repositories::{
         ConversationRepository, HistoryRepository, SettingsRepository, ShortcutRepository,
     },

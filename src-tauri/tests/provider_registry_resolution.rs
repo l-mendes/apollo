@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollo_desktop::{
+use apollo::{
     application::{
         dto::analysis::{AnalyzeCaptureRequest, NormalizedResponse},
         errors::ApplicationError,
@@ -25,7 +25,7 @@ impl AiProvider for StubAiProvider {
     async fn list_models(
         &self,
     ) -> Result<
-        Vec<apollo_desktop::domain::entities::provider_model::ProviderModel>,
+        Vec<apollo::domain::entities::provider_model::ProviderModel>,
         ApplicationError,
     > {
         Ok(Vec::new())

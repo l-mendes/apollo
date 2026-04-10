@@ -9,7 +9,7 @@ pub fn init_logging() {
         tracing_subscriber::registry()
             .with(
                 EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| EnvFilter::new("apollo=info,apollo_desktop=info")),
+                    .unwrap_or_else(|_| EnvFilter::new("apollo=info,apollo=info")),
             )
             .with(tracing_subscriber::fmt::layer().with_target(false))
             .init();

@@ -1,3 +1,3 @@
 fn main() {
-    apollo_desktop::run();
+    apollo::run();
 }

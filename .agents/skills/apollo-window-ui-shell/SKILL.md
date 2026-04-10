@@ -12,7 +12,7 @@ This domain owns the desktop shell that stitches Vue surfaces to native Tauri wi
 ## Workflow
 
 1. Decide whether the change belongs to a surface component, a window entrypoint, or the window shell/composable.
-2. Preserve the main invariants from Fase 5 and 6: the tray is the anchor window, the app window hides on close instead of exiting, and surface state syncs between windows via events.
+2. Preserve the main shell invariants: the tray is the anchor window, the app window hides on close instead of exiting, and surface state syncs between windows via events.
 3. Keep components prop-driven and emit-driven. Avoid direct `invoke` or native window calls inside leaf components.
 4. Prefer event-driven communication for preview, response, and selection windows instead of cross-importing component state.
 5. Re-check platform-specific window sizing behavior in `src-tauri/src/lib.rs` when changing tray size or app-window creation.

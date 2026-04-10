@@ -4,30 +4,31 @@ import { computed } from "vue";
 
 import {
   providerLabel,
-  type ShortcutBinding,
-  type UserSettings
+  type ShortcutBinding
 } from "@/composables/useApolloDesktop";
-
-const props = defineProps<{
-  loading: boolean;
-  errorText: string | null;
-  settings: UserSettings | null;
-  isAnalyzing: boolean;
-  analysisErrorText: string | null;
-}>();
+import { useApolloStore } from "@/store/apollo";
 
 const emit = defineEmits<{
   capture: [];
-  "open-settings": [];
-  "open-history": [];
 }>();
 
+const store = useApolloStore();
+
+const loading = computed(
+  () =>
+    store.state.settings.loading || store.state.settings.providerCatalogLoading
+);
+const settings = computed(() => store.state.settings.draft);
+const errorText = computed(() => store.getters.homeErrorText as string | null);
+const isAnalyzing = computed(() => store.state.analysis.loading);
+const analysisErrorText = computed(() => store.state.analysis.error);
+
 const providerText = computed(() => {
-  if (!props.settings) {
+  if (!settings.value) {
     return "Provider indisponivel";
   }
 
-  return providerLabel(props.settings.preferred_provider);
+  return providerLabel(settings.value.preferred_provider);
 });
 
 const SHORTCUT_LABELS: Record<string, string> = {
@@ -62,13 +63,23 @@ function shortcutLabel(action: string): string {
 }
 
 const enabledShortcuts = computed<ShortcutBinding[]>(() =>
-  (props.settings?.shortcuts ?? []).filter((shortcut) => shortcut.enabled)
+  (settings.value?.shortcuts ?? []).filter(
+    (shortcut: ShortcutBinding) => shortcut.enabled
+  )
 );
+
+function openSettings() {
+  store.commit("setActiveSurface", "settings");
+}
+
+function openHistory() {
+  store.commit("setActiveSurface", "history");
+}
 </script>
 
 <template>
   <div
-    v-if="props.loading"
+    v-if="loading"
     class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6 text-sm text-slate-200"
     data-testid="home-loading"
   >
@@ -76,11 +87,11 @@ const enabledShortcuts = computed<ShortcutBinding[]>(() =>
   </div>
 
   <div
-    v-else-if="!props.settings"
+    v-else-if="!settings"
     class="rounded-xl border border-red-400/30 bg-red-500/10 p-6 text-sm text-red-100"
     data-testid="home-error"
   >
-    {{ props.errorText ?? "Nao foi possivel montar a home do Apollo com os dados atuais." }}
+    {{ errorText ?? "Nao foi possivel montar a home do Apollo com os dados atuais." }}
   </div>
 
   <div
@@ -93,14 +104,14 @@ const enabledShortcuts = computed<ShortcutBinding[]>(() =>
         <button
           class="flex items-center gap-1.5 rounded-lg border border-apollo-app-border bg-apollo-app-card px-4 py-2 text-sm text-slate-100 transition hover:border-apollo-app-accent hover:text-white"
           type="button"
-          @click="emit('open-settings')"
+          @click="openSettings"
         >
           Ajustar prompt
         </button>
         <button
           class="flex items-center gap-1.5 rounded-lg border border-apollo-app-border bg-apollo-app-card px-4 py-2 text-sm text-slate-100 transition hover:border-apollo-app-accent hover:text-white"
           type="button"
-          @click="emit('open-history')"
+          @click="openHistory"
         >
           Ver historico
         </button>
@@ -110,28 +121,28 @@ const enabledShortcuts = computed<ShortcutBinding[]>(() =>
           data-testid="capture-button"
           class="flex items-center gap-1.5 rounded-lg bg-apollo-app-accent px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-apollo-app-hover disabled:text-slate-400"
           type="button"
-          :disabled="props.isAnalyzing"
+          :disabled="isAnalyzing"
           @click="emit('capture')"
         >
           <Camera class="h-4 w-4" />
-          {{ props.isAnalyzing ? "Processando..." : "Capturar Tela" }}
+          {{ isAnalyzing ? "Processando..." : "Capturar Tela" }}
         </button>
       </div>
     </div>
 
     <div
-      v-if="props.errorText"
+      v-if="errorText"
       class="rounded-xl border border-amber-300/25 bg-amber-300/10 px-5 py-4 text-sm text-amber-50"
     >
-      {{ props.errorText }}
+      {{ errorText }}
     </div>
 
     <div
-      v-if="props.analysisErrorText"
+      v-if="analysisErrorText"
       class="rounded-xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100"
       data-testid="home-analysis-error"
     >
-      {{ props.analysisErrorText }}
+      {{ analysisErrorText }}
     </div>
 
     <div class="grid gap-4 md:grid-cols-3">
@@ -141,7 +152,7 @@ const enabledShortcuts = computed<ShortcutBinding[]>(() =>
       </div>
       <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
         <p class="text-xs font-medium uppercase text-apollo-app-muted">Modelo selecionado</p>
-        <p class="mt-2 text-lg font-semibold text-white">{{ props.settings.preferred_model }}</p>
+        <p class="mt-2 text-lg font-semibold text-white">{{ settings.preferred_model }}</p>
       </div>
       <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-5">
         <p class="text-xs font-medium uppercase text-apollo-app-muted">Atalhos ativos</p>

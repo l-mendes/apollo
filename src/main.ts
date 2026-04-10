@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 
 import App from "./App.vue";
+import { apolloStore, apolloStoreKey } from "./store/apollo";
 import TrayWindowApp from "./TrayWindowApp.vue";
 import "./styles/main.css";
 
@@ -62,4 +63,7 @@ async function resolveRootComponent() {
 
 const RootComponent = await resolveRootComponent();
 
-createApp(RootComponent).mount("#app");
+const app = createApp(RootComponent);
+
+app.use(apolloStore, apolloStoreKey);
+app.mount("#app");

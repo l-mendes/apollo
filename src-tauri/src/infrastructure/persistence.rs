@@ -47,7 +47,7 @@ impl SqliteAppRepository {
 
     pub fn in_memory() -> Result<Self, ApplicationError> {
         let database_path = std::env::temp_dir().join(format!(
-            "apollo-phase3-{}.db",
+            "apollo-temp-{}.db",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("system clock should be after unix epoch")

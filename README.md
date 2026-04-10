@@ -40,7 +40,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ## Conventions
 
-- Phase-driven development with TDD.
+- Spec-driven development with TDD.
 - Explicit separation between domain, application, infrastructure, and UI.
 - Every external integration must go through an adapter.
 - No UI coupling to provider, OCR, or persistence details.

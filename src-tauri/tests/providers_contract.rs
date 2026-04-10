@@ -1,11 +1,10 @@
 mod support;
 
-use support::{ProviderChannel, ProviderFailureKind, ProviderKind, phase1_harness, sample_request};
+use support::{ProviderChannel, ProviderFailureKind, ProviderKind, contract_harness, sample_request};
 
 #[test]
-#[ignore = "Phase 2 will provide provider contracts and adapters"]
 fn http_providers_expose_non_empty_manually_managed_model_catalogs() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
 
     for provider_kind in [
         ProviderKind::OpenAi,
@@ -28,9 +27,8 @@ fn http_providers_expose_non_empty_manually_managed_model_catalogs() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide provider contracts and adapters"]
 fn provider_analysis_is_normalized_to_a_common_response_shape() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::OpenAi, "gpt-4.1-mini");
 
     let response = subject
@@ -44,9 +42,8 @@ fn provider_analysis_is_normalized_to_a_common_response_shape() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide provider contracts and adapters"]
 fn provider_timeouts_are_reported_with_a_specific_failure_kind() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::Anthropic, "claude-3-7-sonnet");
 
     let error = subject
@@ -58,9 +55,8 @@ fn provider_timeouts_are_reported_with_a_specific_failure_kind() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide provider contracts and adapters"]
 fn provider_unavailability_is_distinguished_from_authentication_failures() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::OllamaCloud, "llama3.2");
 
     let error = subject

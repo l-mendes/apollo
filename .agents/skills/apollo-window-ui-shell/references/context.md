@@ -6,10 +6,7 @@ Own the multi-window shell around the Apollo experience: tray, app, preview, res
 
 ## Primary docs
 
-- `docs/ui.md`
-- `docs/window-behavior.md`
-- `docs/phases/phase-5-frontend.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary frontend files
 

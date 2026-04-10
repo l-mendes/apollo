@@ -1,13 +1,13 @@
 mod support;
 
 use support::{
-    MessageRole, ProviderKind, phase1_harness, sample_follow_up_message, sample_request,
+    MessageRole, MessageSpec, ProviderKind, contract_harness, sample_follow_up_message,
+    sample_request,
 };
 
 #[test]
-#[ignore = "Phase 2 will provide the conversation workflow contract"]
 fn composed_prompt_includes_base_prompt_ocr_notes_and_previous_context() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::OpenAi, "gpt-4.1-mini");
 
     let prompt = subject.compose_prompt(&request);
@@ -19,24 +19,48 @@ fn composed_prompt_includes_base_prompt_ocr_notes_and_previous_context() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the conversation workflow contract"]
 fn continuing_a_conversation_preserves_previous_messages_before_new_turns() {
-    let subject = phase1_harness();
-    let session_id = "session-001";
+    let subject = contract_harness();
+    let mut session = support::sample_history_session();
+    session.provider_kind = ProviderKind::OpenAi;
+    session.model_id = "gpt-4.1-mini".to_string();
     let follow_up = sample_follow_up_message();
 
     subject
-        .append_message(session_id, &follow_up)
-        .expect("follow-up message should append");
+        .save_session(&session)
+        .expect("session should persist");
+    subject
+        .append_message(
+            &session.session_id,
+            &MessageSpec {
+                role: MessageRole::Assistant,
+                content: session.response_text.clone(),
+            },
+        )
+        .expect("seed assistant message should append");
+    let appended = subject
+        .continue_conversation(
+            &session.session_id,
+            session.provider_kind,
+            &session.model_id,
+            &follow_up.content,
+        )
+        .expect("conversation continuation should succeed");
 
     let conversation = subject
-        .load_conversation(session_id)
+        .load_conversation(&session.session_id)
         .expect("conversation should load");
 
+    assert!(appended.contains(&follow_up));
+    assert!(
+        appended
+            .iter()
+            .any(|message| message.role == MessageRole::Assistant)
+    );
     assert!(
         conversation
             .iter()
-            .any(|message| message.role == MessageRole::Assistant)
+            .any(|message| message.content == session.response_text)
     );
     assert!(conversation.contains(&follow_up));
 }

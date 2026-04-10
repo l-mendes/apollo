@@ -6,11 +6,7 @@ Own capture analysis orchestration, prompt rendering, provider dispatch from app
 
 ## Primary docs
 
-- `docs/contracts.md`
-- `docs/architecture.md`
-- `docs/testing-strategy.md`
-- `docs/errors-and-telemetry.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

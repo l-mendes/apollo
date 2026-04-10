@@ -1,11 +1,13 @@
 mod support;
 
-use support::{OcrFailureKind, phase1_harness, sample_capture};
+use support::{
+    OcrFailureKind, contract_harness, sample_capture, sample_empty_capture,
+    sample_missing_engine_capture,
+};
 
 #[test]
-#[ignore = "Phase 2 will provide the OCR port and adapter"]
 fn ocr_extracts_text_from_a_valid_capture() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let capture = sample_capture();
 
     let result = subject
@@ -16,10 +18,9 @@ fn ocr_extracts_text_from_a_valid_capture() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the OCR port and adapter"]
 fn ocr_reports_no_text_detected_when_the_capture_is_legible_but_empty() {
-    let subject = phase1_harness();
-    let capture = sample_capture();
+    let subject = contract_harness();
+    let capture = sample_empty_capture();
 
     let error = subject
         .extract_text(&capture)
@@ -29,10 +30,9 @@ fn ocr_reports_no_text_detected_when_the_capture_is_legible_but_empty() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the OCR port and adapter"]
 fn ocr_reports_engine_unavailability_explicitly() {
-    let subject = phase1_harness();
-    let capture = sample_capture();
+    let subject = contract_harness();
+    let capture = sample_missing_engine_capture();
 
     let error = subject
         .extract_text(&capture)

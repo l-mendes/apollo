@@ -15,7 +15,7 @@ This domain owns how Apollo stores, loads, and presents sessions plus conversati
 2. Keep sessions in `interaction_sessions` and turn-by-turn messages in `conversation_messages`; do not collapse both concerns into one structure.
 3. Preserve ordering guarantees when loading messages. The UI assumes the backend returns the conversation in creation order.
 4. Keep `HistorySurface.vue` prop-driven. Fetching, selection, and persistence stay in composables and Tauri commands.
-5. Preserve the invariant from Fase 6: follow-ups reuse the original session id, provider, and model so the local timeline remains coherent.
+5. Preserve the follow-up invariant: reuse the original session id, provider, and model so the local timeline remains coherent.
 
 ## Implementation Notes
 

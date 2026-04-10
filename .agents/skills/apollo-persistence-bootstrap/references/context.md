@@ -6,10 +6,7 @@ Own database bootstrap, migrations, SQLite repository initialization, app metada
 
 ## Primary docs
 
-- `docs/architecture.md`
-- `docs/contracts.md`
-- `docs/phases/implementation-plan.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

@@ -6,10 +6,7 @@ Own provider adapters, transport and command execution helpers, model catalog lo
 
 ## Primary docs
 
-- `docs/contracts.md`
-- `docs/errors-and-telemetry.md`
-- `docs/testing-strategy.md`
-- `docs/phases/implementation-plan.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

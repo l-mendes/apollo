@@ -1,11 +1,10 @@
 mod support;
 
-use support::{ProviderFailureKind, ProviderKind, phase1_harness, sample_request};
+use support::{ProviderFailureKind, ProviderKind, contract_harness, sample_request};
 
 #[test]
-#[ignore = "Phase 2 will provide the CLI provider executor"]
 fn cli_providers_surface_missing_binary_as_a_specific_error() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
 
     let error = subject
         .probe_cli_availability(ProviderKind::CopilotCli)
@@ -15,9 +14,8 @@ fn cli_providers_surface_missing_binary_as_a_specific_error() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the CLI provider executor"]
 fn cli_providers_normalize_stdout_to_the_common_response_shape() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::CodexCli, "codex-latest");
 
     let response = subject
@@ -30,9 +28,8 @@ fn cli_providers_normalize_stdout_to_the_common_response_shape() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the CLI provider executor"]
 fn cli_providers_report_timeout_and_authentication_failures_explicitly() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let request = sample_request(ProviderKind::ClaudeCli, "claude-cli-default");
 
     let error = subject

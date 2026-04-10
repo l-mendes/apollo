@@ -6,11 +6,7 @@ Own screen capture, rectangular selection, OCR execution, and the payloads that 
 
 ## Primary docs
 
-- `docs/architecture.md`
-- `docs/ui.md`
-- `docs/window-behavior.md`
-- `docs/testing-strategy.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

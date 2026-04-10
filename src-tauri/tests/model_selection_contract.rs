@@ -1,11 +1,10 @@
 mod support;
 
-use support::{ProviderChannel, ProviderKind, phase1_harness};
+use support::{ProviderChannel, ProviderKind, contract_harness};
 
 #[test]
-#[ignore = "Phase 2 will provide the provider registry and model selection contract"]
 fn active_model_resolution_returns_the_exact_requested_manual_catalog_entry() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
 
     let model = subject
         .resolve_active_model(ProviderKind::Anthropic, "claude-3-7-sonnet")
@@ -17,9 +16,8 @@ fn active_model_resolution_returns_the_exact_requested_manual_catalog_entry() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the provider registry and model selection contract"]
 fn cli_model_resolution_returns_cli_catalog_metadata() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
 
     let model = subject
         .resolve_active_model(ProviderKind::ClaudeCli, "claude-cli-default")

@@ -6,10 +6,7 @@ Own user settings, shortcut bindings, OCR and output language preferences, prefe
 
 ## Primary docs
 
-- `docs/contracts.md`
-- `docs/ui.md`
-- `docs/phases/phase-5-frontend.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

@@ -1,11 +1,10 @@
 mod support;
 
-use support::{phase1_harness, sample_follow_up_message, sample_history_session};
+use support::{contract_harness, sample_follow_up_message, sample_history_session};
 
 #[test]
-#[ignore = "Phase 2 will provide the history repository contract"]
 fn history_persists_core_session_fields_for_each_analysis() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let session = sample_history_session();
 
     subject
@@ -20,9 +19,8 @@ fn history_persists_core_session_fields_for_each_analysis() {
 }
 
 #[test]
-#[ignore = "Phase 2 will provide the history repository contract"]
 fn history_appends_follow_up_messages_to_an_existing_session() {
-    let subject = phase1_harness();
+    let subject = contract_harness();
     let session = sample_history_session();
     let message = sample_follow_up_message();
 

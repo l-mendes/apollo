@@ -6,10 +6,7 @@ Own persisted sessions, persisted conversation messages, follow-up continuation 
 
 ## Primary docs
 
-- `docs/contracts.md`
-- `docs/ui.md`
-- `docs/phases/phase-5-frontend.md`
-- `docs/phases/phase-6-integration.md`
+- `AGENTS.md`
 
 ## Primary backend files
 

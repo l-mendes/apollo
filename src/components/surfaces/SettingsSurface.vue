@@ -6,153 +6,168 @@ import {
   PROVIDER_OPTIONS,
   cloneSettings,
   providerLabel,
-  type ProviderCatalog,
+  type ProviderModel,
   type ProviderKind,
   type UserSettings
 } from "@/composables/useApolloDesktop";
-
-const props = defineProps<{
-  loading: boolean;
-  saving: boolean;
-  errorText: string | null;
-  settings: UserSettings | null;
-  modelsByProvider: ProviderCatalog;
-  hasUnsavedChanges: boolean;
-}>();
+import { useApolloStore } from "@/store/apollo";
 
 const emit = defineEmits<{
-  "update:settings": [settings: UserSettings];
   save: [];
 }>();
 
+const store = useApolloStore();
+
+const loading = computed(
+  () =>
+    store.state.settings.loading || store.state.settings.providerCatalogLoading
+);
+const saving = computed(() => store.state.settings.saving);
+const errorText = computed(
+  () =>
+    (store.getters.settingsPanelErrorText as string | null) ??
+    store.state.settings.providerCatalogError
+);
+const settings = computed(() => store.state.settings.draft);
+const modelsByProvider = computed(() => store.state.settings.providerCatalog);
+const hasUnsavedChanges = computed(
+  () => store.getters.hasUnsavedSettings as boolean
+);
+
 const availableModels = computed(() => {
-  if (!props.settings) {
+  if (!settings.value) {
     return [];
   }
 
-  return props.modelsByProvider[props.settings.preferred_provider] ?? [];
+  return modelsByProvider.value[settings.value.preferred_provider] ?? [];
 });
 
-function emitUpdatedSettings(nextSettings: UserSettings) {
-  emit("update:settings", nextSettings);
+function updateDraft(nextSettings: UserSettings) {
+  store.commit("patchSettingsState", {
+    draft: nextSettings
+  });
 }
 
 function changeProvider(providerKind: ProviderKind) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  const models = props.modelsByProvider[providerKind] ?? [];
+  const models = modelsByProvider.value[providerKind] as ProviderModel[] | undefined;
   const fallbackModel =
-    models.find((model) => model.is_default)?.model_key ??
-    models[0]?.model_key ??
-    props.settings.preferred_model;
+    models?.find((model: ProviderModel) => model.is_default)?.model_key ??
+    models?.[0]?.model_key ??
+    settings.value.preferred_model;
 
-  emitUpdatedSettings({
-    ...cloneSettings(props.settings),
+  updateDraft({
+    ...cloneSettings(settings.value),
     preferred_provider: providerKind,
     preferred_model: fallbackModel
   });
 }
 
 function changeModel(modelKey: string) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  emitUpdatedSettings({
-    ...cloneSettings(props.settings),
+  updateDraft({
+    ...cloneSettings(settings.value),
     preferred_model: modelKey
   });
 }
 
 function changeBasePrompt(basePrompt: string) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  emitUpdatedSettings({
-    ...cloneSettings(props.settings),
+  updateDraft({
+    ...cloneSettings(settings.value),
     base_prompt: basePrompt
   });
 }
 
 function changeOcrLanguage(ocrLanguage: string) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  emitUpdatedSettings({
-    ...cloneSettings(props.settings),
+  updateDraft({
+    ...cloneSettings(settings.value),
     ocr_language: ocrLanguage
   });
 }
 
 function changeOutputLanguage(outputLanguage: string) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  emitUpdatedSettings({
-    ...cloneSettings(props.settings),
+  updateDraft({
+    ...cloneSettings(settings.value),
     output_language: outputLanguage
   });
 }
 
 const OCR_LANGUAGE_OPTIONS = [
-  { value: 'por', label: 'Português (por)' },
-  { value: 'eng', label: 'English (eng)' },
-  { value: 'spa', label: 'Español (spa)' },
-  { value: 'fra', label: 'Français (fra)' },
-  { value: 'deu', label: 'Deutsch (deu)' },
-  { value: 'ita', label: 'Italiano (ita)' },
-  { value: 'chi_sim', label: '中文 Simplificado (chi_sim)' },
-  { value: 'jpn', label: '日本語 (jpn)' },
+  { value: "por", label: "Português (por)" },
+  { value: "eng", label: "English (eng)" },
+  { value: "spa", label: "Español (spa)" },
+  { value: "fra", label: "Français (fra)" },
+  { value: "deu", label: "Deutsch (deu)" },
+  { value: "ita", label: "Italiano (ita)" },
+  { value: "chi_sim", label: "中文 Simplificado (chi_sim)" },
+  { value: "jpn", label: "日本語 (jpn)" }
 ];
 
 const OUTPUT_LANGUAGE_OPTIONS = [
-  'Português',
-  'English',
-  'Español',
-  'Français',
-  'Deutsch',
-  'Italiano',
-  '中文',
-  '日本語',
+  "Português",
+  "English",
+  "Español",
+  "Français",
+  "Deutsch",
+  "Italiano",
+  "中文",
+  "日本語"
 ];
 
-function changeShortcutValue(index: number, field: "action" | "accelerator", value: string) {
-  if (!props.settings) {
+function changeShortcutValue(
+  index: number,
+  field: "action" | "accelerator",
+  value: string
+) {
+  if (!settings.value) {
     return;
   }
 
-  const nextSettings = cloneSettings(props.settings);
+  const nextSettings = cloneSettings(settings.value);
   nextSettings.shortcuts[index] = {
     ...nextSettings.shortcuts[index],
     [field]: value
   };
 
-  emitUpdatedSettings(nextSettings);
+  updateDraft(nextSettings);
 }
 
 function changeShortcutEnabled(index: number, enabled: boolean) {
-  if (!props.settings) {
+  if (!settings.value) {
     return;
   }
 
-  const nextSettings = cloneSettings(props.settings);
+  const nextSettings = cloneSettings(settings.value);
   nextSettings.shortcuts[index] = {
     ...nextSettings.shortcuts[index],
     enabled
   };
 
-  emitUpdatedSettings(nextSettings);
+  updateDraft(nextSettings);
 }
 </script>
 
 <template>
   <div
-    v-if="props.loading"
+    v-if="loading"
     class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6 text-sm text-slate-200"
     data-testid="settings-loading"
   >
@@ -160,11 +175,11 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
   </div>
 
   <div
-    v-else-if="!props.settings"
+    v-else-if="!settings"
     class="rounded-xl border border-red-400/30 bg-red-500/10 p-6 text-sm text-red-100"
     data-testid="settings-error"
   >
-    {{ props.errorText ?? 'Nao foi possivel carregar as configuracoes atuais.' }}
+    {{ errorText ?? "Nao foi possivel carregar as configuracoes atuais." }}
   </div>
 
   <div
@@ -176,28 +191,28 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
       <span
         class="rounded-full border px-3 py-1 text-xs"
         :class="
-          props.hasUnsavedChanges
+          hasUnsavedChanges
             ? 'border-amber-300/30 bg-amber-300/10 text-amber-50'
             : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'
         "
       >
-        {{ props.hasUnsavedChanges ? 'Alteracoes locais' : 'Sincronizado' }}
+        {{ hasUnsavedChanges ? "Alteracoes locais" : "Sincronizado" }}
       </span>
       <button
         class="rounded-lg bg-apollo-app-accent px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-apollo-app-hover disabled:text-slate-400"
         type="button"
-        :disabled="props.saving"
+        :disabled="saving"
         @click="emit('save')"
       >
-        {{ props.saving ? 'Salvando...' : 'Salvar configuracoes' }}
+        {{ saving ? "Salvando..." : "Salvar configuracoes" }}
       </button>
     </div>
 
     <div
-      v-if="props.errorText"
+      v-if="errorText"
       class="rounded-xl border border-amber-300/25 bg-amber-300/10 px-5 py-4 text-sm text-amber-50"
     >
-      {{ props.errorText }}
+      {{ errorText }}
     </div>
 
     <div class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6">
@@ -210,7 +225,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
           :key="provider.kind"
           class="flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition"
           :class="
-            props.settings.preferred_provider === provider.kind
+            settings.preferred_provider === provider.kind
               ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
               : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
           "
@@ -228,7 +243,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
                 : 'bg-violet-400/15 text-violet-300'
             "
           >
-            {{ provider.channel === 'Http' ? 'HTTP' : 'CLI' }}
+            {{ provider.channel === "Http" ? "HTTP" : "CLI" }}
           </span>
         </button>
       </div>
@@ -240,7 +255,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
       <div class="mt-5">
         <select
           class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-          :value="props.settings.preferred_model"
+          :value="settings.preferred_model"
           @change="changeModel(($event.target as HTMLSelectElement).value)"
         >
           <option
@@ -265,7 +280,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
       <p class="mt-1 text-sm text-apollo-app-muted">O prompt base e usado como contexto principal em todas as analises.</p>
       <textarea
         class="mt-4 min-h-40 w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-apollo-app-accent"
-        :value="props.settings.base_prompt"
+        :value="settings.base_prompt"
         @input="changeBasePrompt(($event.target as HTMLTextAreaElement).value)"
       />
     </div>
@@ -277,7 +292,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
         <div class="mt-4">
           <select
             class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-            :value="props.settings.ocr_language"
+            :value="settings.ocr_language"
             @change="changeOcrLanguage(($event.target as HTMLSelectElement).value)"
           >
             <option
@@ -297,7 +312,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
         <div class="mt-4">
           <select
             class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-            :value="props.settings.output_language"
+            :value="settings.output_language"
             @change="changeOutputLanguage(($event.target as HTMLSelectElement).value)"
           >
             <option
@@ -318,7 +333,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
 
       <div class="mt-5 space-y-3">
         <div
-          v-for="(shortcut, index) in props.settings.shortcuts"
+          v-for="(shortcut, index) in settings.shortcuts"
           :key="`${shortcut.action}-${index}`"
           class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
         >
@@ -341,7 +356,7 @@ function changeShortcutEnabled(index: number, enabled: boolean) {
                   Ativo
                 </label>
               </div>
-              <p class="mt-1 text-sm text-apollo-app-muted">{{ providerLabel(props.settings.preferred_provider) }} workflow</p>
+              <p class="mt-1 text-sm text-apollo-app-muted">{{ providerLabel(settings.preferred_provider) }} workflow</p>
             </div>
           </div>
 

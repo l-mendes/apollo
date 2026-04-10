@@ -517,7 +517,6 @@ export async function openResponseWindow(): Promise<void> {
       height: 560,
       decorations: false,
       transparent: true,
-      alwaysOnTop: true,
       skipTaskbar: true,
       visible: true,
       center: true

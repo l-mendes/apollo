@@ -105,12 +105,14 @@ import {
   APP_WINDOW_LABEL,
   APP_WINDOW_URL,
   NAVIGATE_SURFACE_EVENT,
+  RESPONSE_WINDOW_LABEL,
   SURFACE_CHANGED_EVENT,
   emitSurfaceChanged,
   listenForAppCloseToHide,
   listenForSurfaceChanged,
   listenForSurfaceNavigation,
   openAppWindow,
+  openResponseWindow,
   openSelectionWindow,
   syncAppWindowAppearance,
   syncTrayWindowAppearance
@@ -126,7 +128,9 @@ describe("useWindowShell", () => {
     mocks.focusMock.mockReset().mockResolvedValue(undefined);
     mocks.setPositionMock.mockReset().mockResolvedValue(undefined);
     mocks.outerPositionMock.mockReset().mockResolvedValue({ x: 1920, y: 0 });
-    mocks.outerSizeMock.mockReset().mockResolvedValue({ width: 2560, height: 1440 });
+    mocks.outerSizeMock
+      .mockReset()
+      .mockResolvedValue({ width: 2560, height: 1440 });
     mocks.destroyMock.mockReset().mockResolvedValue(undefined);
     mocks.onceMock
       .mockReset()
@@ -163,6 +167,7 @@ describe("useWindowShell", () => {
       setFocus: mocks.focusMock,
       setPosition: mocks.setPositionMock,
       setSize: mocks.setSizeMock,
+      setAlwaysOnTop: mocks.setAlwaysOnTopMock,
       outerPosition: mocks.outerPositionMock,
       outerSize: mocks.outerSizeMock,
       destroy: mocks.destroyMock,
@@ -202,6 +207,35 @@ describe("useWindowShell", () => {
     expect(mocks.emitMock).toHaveBeenCalledWith(NAVIGATE_SURFACE_EVENT, {
       surface: "settings"
     });
+  });
+
+  it("opens an existing response window without forcing always-on-top", async () => {
+    await openResponseWindow();
+
+    expect(mocks.webviewGetByLabelMock).toHaveBeenCalledWith(
+      RESPONSE_WINDOW_LABEL
+    );
+    expect(mocks.setAlwaysOnTopMock).not.toHaveBeenCalled();
+    expect(mocks.showMock).toHaveBeenCalled();
+    expect(mocks.focusMock).toHaveBeenCalled();
+  });
+
+  it("creates the response window without always-on-top", async () => {
+    mocks.webviewGetByLabelMock.mockResolvedValueOnce(null);
+
+    await openResponseWindow();
+
+    expect(mocks.createdWindows).toHaveLength(1);
+    expect(mocks.createdWindows[0]).toEqual(
+      expect.objectContaining({
+        label: RESPONSE_WINDOW_LABEL,
+        options: expect.objectContaining({
+          decorations: false,
+          transparent: true,
+          skipTaskbar: true
+        })
+      })
+    );
   });
 
   it("broadcasts surface changes back to the tray window", async () => {

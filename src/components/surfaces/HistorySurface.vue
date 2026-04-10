@@ -57,8 +57,24 @@ function openSessionChat(sessionId: string) {
   emit("open-session-chat", sessionId);
 }
 
+function clearHistory() {
+  if (
+    window.confirm(
+      "Tem certeza que deseja limpar todo o historico? Esta acao nao pode ser desfeita."
+    )
+  ) {
+    emit("clear-history");
+  }
+}
+
 function deleteSession(sessionId: string) {
-  emit("delete-session", sessionId);
+  if (
+    window.confirm(
+      "Tem certeza que deseja excluir esta sessao? Esta acao nao pode ser desfeita."
+    )
+  ) {
+    emit("delete-session", sessionId);
+  }
 }
 
 function openHome() {
@@ -122,7 +138,7 @@ function openHome() {
         class="rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
         type="button"
         :disabled="sessions.length === 0"
-        @click="emit('clear-history')"
+        @click="clearHistory"
       >
         Limpar historico
       </button>

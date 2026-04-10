@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { X } from "lucide-vue-next";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Minus, X } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 import ConversationChat from "@/components/chat/ConversationChat.vue";
@@ -78,8 +79,15 @@ onBeforeUnmount(() => {
 
 async function closeWindow() {
   try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().hide();
+  } catch {
+    // noop in web mode
+  }
+}
+
+async function minimizeWindow() {
+  try {
+    await getCurrentWindow().minimize();
   } catch {
     // noop in web mode
   }
@@ -162,13 +170,24 @@ async function submitFollowUp() {
         </p>
       </div>
 
-      <button
-        class="rounded-lg p-1 text-apollo-app-muted transition hover:bg-apollo-app-hover hover:text-white"
-        type="button"
-        @click="closeWindow"
-      >
-        <X class="h-4 w-4" />
-      </button>
+      <div class="flex items-center gap-1">
+        <button
+          aria-label="Minimizar chat"
+          class="rounded-lg p-1 text-apollo-app-muted transition hover:bg-apollo-app-hover hover:text-white"
+          type="button"
+          @click="minimizeWindow"
+        >
+          <Minus class="h-4 w-4" />
+        </button>
+        <button
+          aria-label="Fechar chat"
+          class="rounded-lg p-1 text-apollo-app-muted transition hover:bg-apollo-app-hover hover:text-white"
+          type="button"
+          @click="closeWindow"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
     </div>
 
     <div class="min-h-0 flex-1 p-4">
@@ -179,7 +198,7 @@ async function submitFollowUp() {
         :composer-value="continuePrompt"
         :composer-disabled="continueLoading || !sessionId"
         :composer-loading="continueLoading"
-        composer-placeholder="Continue a conversa a partir desta resposta..."
+        composer-placeholder="Pergunte alguma coisa..."
         composer-submit-label="Enviar mensagem"
         empty-text="Aguardando a primeira resposta da analise."
         show-composer

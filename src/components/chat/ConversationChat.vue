@@ -32,7 +32,7 @@ const props = withDefaults(
     pendingUserMessage: null,
     pendingAssistantText: "Pensando...",
     composerValue: "",
-    composerPlaceholder: "Continue a conversa...",
+    composerPlaceholder: "Pergunte alguma coisa...",
     composerDisabled: false,
     composerLoading: false,
     composerSubmitLabel: "Enviar",

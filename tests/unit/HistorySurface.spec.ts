@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
+import { afterEach, vi } from "vitest";
 
 import HistorySurface from "@/components/surfaces/HistorySurface.vue";
 import { apolloStoreKey, createApolloStore } from "@/store/apollo";
@@ -29,6 +30,10 @@ function session(id: string, responseText = "Answer") {
 }
 
 describe("HistorySurface", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders an empty state when there are no sessions yet", async () => {
     const { store, wrapper } = mountHistorySurface();
 
@@ -71,6 +76,7 @@ describe("HistorySurface", () => {
   });
 
   it("emits clear history from the toolbar action", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     const { store, wrapper } = mountHistorySurface();
 
     store.commit("patchHistoryState", {
@@ -86,7 +92,25 @@ describe("HistorySurface", () => {
     expect(wrapper.emitted("clear-history")).toHaveLength(1);
   });
 
+  it("does not emit clear history when confirmation is cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { store, wrapper } = mountHistorySurface();
+
+    store.commit("patchHistoryState", {
+      loading: false,
+      error: null,
+      items: [session("session-1")],
+      selectedHistoryId: "session-1"
+    });
+    await nextTick();
+
+    await wrapper.find('[data-testid="clear-history-button"]').trigger("click");
+
+    expect(wrapper.emitted("clear-history")).toBeUndefined();
+  });
+
   it("emits delete for a single session without opening the chat", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     const { store, wrapper } = mountHistorySurface();
 
     store.commit("patchHistoryState", {
@@ -110,6 +134,26 @@ describe("HistorySurface", () => {
         .attributes("aria-label")
     ).toBe("Excluir sessao session-1");
     expect(wrapper.emitted("delete-session")).toEqual([["session-1"]]);
+    expect(wrapper.emitted("open-session-chat")).toBeUndefined();
+  });
+
+  it("does not emit delete when confirmation is cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { store, wrapper } = mountHistorySurface();
+
+    store.commit("patchHistoryState", {
+      loading: false,
+      error: null,
+      items: [session("session-1")],
+      selectedHistoryId: "session-1"
+    });
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="delete-session-button"]')
+      .trigger("click");
+
+    expect(wrapper.emitted("delete-session")).toBeUndefined();
     expect(wrapper.emitted("open-session-chat")).toBeUndefined();
   });
 

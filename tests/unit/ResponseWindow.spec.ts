@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   continueConversationMock: vi.fn(),
   emitResponseConversationSyncMock: vi.fn(),
-  hideMock: vi.fn()
+  hideMock: vi.fn(),
+  minimizeMock: vi.fn()
 }));
 
 let responseUpdateHandler:
@@ -45,7 +46,8 @@ vi.mock("@/composables/useWindowShell", () => ({
 
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
-    hide: mocks.hideMock
+    hide: mocks.hideMock,
+    minimize: mocks.minimizeMock
   })
 }));
 
@@ -102,6 +104,7 @@ describe("ResponseWindow", () => {
       .mockReset()
       .mockResolvedValue(undefined);
     mocks.hideMock.mockReset().mockResolvedValue(undefined);
+    mocks.minimizeMock.mockReset().mockResolvedValue(undefined);
     responseUpdateHandler = null;
   });
 
@@ -116,6 +119,17 @@ describe("ResponseWindow", () => {
     expect(wrapper.text()).toContain("Texto capturado via OCR");
     expect(wrapper.text()).toContain("Resposta inicial do modelo");
     expect(wrapper.text()).not.toContain("Prompt enviado");
+  });
+
+  it("minimizes the response window from the header action", async () => {
+    const wrapper = mount(ResponseWindow);
+    await nextTick();
+
+    await wrapper.find('[aria-label="Minimizar chat"]').trigger("click");
+    await Promise.resolve();
+
+    expect(mocks.minimizeMock).toHaveBeenCalled();
+    expect(mocks.hideMock).not.toHaveBeenCalled();
   });
 
   it("continues the conversation from the response window and syncs the app window", async () => {

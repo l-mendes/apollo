@@ -21,7 +21,6 @@ export const APP_WINDOW_LABEL = "app";
 export const NAVIGATE_SURFACE_EVENT = "apollo:navigate-surface";
 export const SURFACE_CHANGED_EVENT = "apollo:surface-changed";
 export const APP_WINDOW_URL = "index.html?window=app";
-const TRAY_WINDOW_SIZE = new LogicalSize(300, 48);
 
 export type AppSurface = Exclude<SurfaceId, "none">;
 
@@ -214,20 +213,10 @@ export function currentWindowLabel(): string {
 export async function syncTrayWindowAppearance(): Promise<void> {
   try {
     const window = getCurrentWindow();
-
-    // Clear the minimum size first so GTK/OS does not block a resize below its
-    // internal default (~200 px). Setting it before setSize avoids a race where
-    // setMinSize wins and clamps the height back up.
-    await window.setMinSize(null);
-    await Promise.allSettled([
-      window.setSize(TRAY_WINDOW_SIZE),
-      window.setAlwaysOnTop(true),
-      window.setDecorations(false),
-      window.setSkipTaskbar(true),
-      window.setShadow(false)
-    ]);
-    // Re-apply the minimum only after the window has been sized correctly.
-    await window.setMinSize(TRAY_WINDOW_SIZE);
+    // Shadow is the only property not configurable in tauri.conf.json.
+    // The rest (size, alwaysOnTop, decorations, skipTaskbar) comes from config
+    // and the Rust-side WebKitGTK size_request override.
+    await window.setShadow(false);
   } catch {
     // noop in web mode
   }

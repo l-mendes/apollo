@@ -107,15 +107,15 @@ pub fn run() {
             app.manage(AppState::new(snapshot));
 
             // On Linux/GTK the WebKitGTK widget has a natural preferred height
-            // (~200 px) that overrides the config value before JS can run.
-            // Enforcing the size here, while the window is still pre-render,
-            // prevents the OS window from expanding beyond the tray bar height.
+            // (~200 px) that overrides the tauri.conf.json values before JS
+            // can run. Override the widget's size request so GTK respects the
+            // configured 300×48 tray dimensions.
+            #[cfg(target_os = "linux")]
             if let Some(tray_win) = app.get_webview_window("tray") {
-                let tray_size = tauri::LogicalSize::new(300.0_f64, 48.0_f64);
-                let _ = tray_win.set_min_size(None::<tauri::LogicalSize<f64>>);
-                let _ = tray_win.set_max_size(Some(tray_size));
-                let _ = tray_win.set_size(tray_size);
-                let _ = tray_win.set_min_size(Some(tray_size));
+                use gtk::prelude::WidgetExt;
+                let _ = tray_win.with_webview(|webview| {
+                    webview.inner().set_size_request(300, 48);
+                });
             }
 
             Ok(())

@@ -26,6 +26,8 @@ This domain owns the desktop shell that stitches Vue surfaces to native Tauri wi
 - History double-click opens the selected session timeline in the response window rather than rendering conversation detail inside `HistorySurface.vue`.
 - Response-window follow-ups should clear the composer immediately, show the submitted message and thinking state, then unlock input only after the provider response is fully synced.
 - Selection window placement depends on cursor monitor resolution and is easy to break on multi-monitor or HiDPI setups.
+- `syncTrayWindowAppearance` only calls `setShadow(false)`. All other tray properties (size, alwaysOnTop, decorations, skipTaskbar) are declared in `tauri.conf.json` and do not need to be re-applied at runtime.
+- On Linux, WebKitGTK has a natural preferred height of ~200 px that overrides `tauri.conf.json`. The fix lives in `src-tauri/src/lib.rs` inside the `.setup` closure: `with_webview` calls `gtk::prelude::WidgetExt::set_size_request(300, 48)` on the underlying widget. Do not add size-management workarounds back to `syncTrayWindowAppearance` or the setup block.
 
 ## Validation
 

@@ -48,6 +48,7 @@ import {
   openPreviewWindow,
   openResponseWindow,
   openSelectionWindow,
+  revealCurrentWindow,
   syncAppWindowAppearance,
   type AppSurface,
   type ResponseUpdatePayload
@@ -82,6 +83,7 @@ let unlistenSelectionCancelled: (() => void) | null = null;
 let unlistenPreviewConfirm: (() => void) | null = null;
 let unlistenPreviewCancel: (() => void) | null = null;
 let unlistenResponseConversationSync: (() => void) | null = null;
+let shortcutsSuppressedForRecording = false;
 
 const activeSurface = computed(() => store.state.shell.activeSurface);
 const versionText = computed(() => store.getters.versionText as string);
@@ -145,8 +147,12 @@ onMounted(async () => {
     activateSurface("home");
   });
   unlistenShortcutAction = await listenForShortcutAction((action) => {
-    if (action === "open_settings") activateSurface("settings");
-    else if (action === "open_history") activateSurface("history");
+    const targetSurface = shortcutSurfaceTarget(action);
+
+    if (targetSurface) {
+      activateSurface(targetSurface);
+      void revealCurrentWindow();
+    }
   });
   unlistenStartAreaCapture = await listenForStartAreaCapture(() => {
     void handleCapture();
@@ -271,6 +277,20 @@ function normalizeSettings(nextSettings: UserSettings): UserSettings {
 
 function activateSurface(surface: AppSurface) {
   store.commit("setActiveSurface", surface);
+}
+
+function shortcutSurfaceTarget(action: string): AppSurface | null {
+  const actionLower = action.toLowerCase();
+
+  if (actionLower.includes("history") || actionLower.includes("histor")) {
+    return "history";
+  }
+
+  if (actionLower.includes("settings") || actionLower.includes("config")) {
+    return "settings";
+  }
+
+  return null;
 }
 
 async function refreshSettings() {
@@ -679,7 +699,9 @@ async function handleSaveSettings() {
       draft: cloneSettings(savedSettings)
     });
 
-    void applyGlobalShortcuts(savedSettings.shortcuts).catch(() => {});
+    if (!shortcutsSuppressedForRecording) {
+      void applyGlobalShortcuts(savedSettings.shortcuts).catch(() => {});
+    }
   } catch (error) {
     store.commit("patchSettingsState", {
       error: commandErrorMessage(
@@ -692,6 +714,22 @@ async function handleSaveSettings() {
       saving: false
     });
   }
+}
+
+function activeShortcutBindings() {
+  return (
+    store.state.settings.saved?.shortcuts ??
+    store.state.settings.draft?.shortcuts ??
+    []
+  );
+}
+
+function handleShortcutRecordingChange(recording: boolean) {
+  shortcutsSuppressedForRecording = recording;
+
+  void applyGlobalShortcuts(recording ? [] : activeShortcutBindings()).catch(
+    () => {}
+  );
 }
 
 async function handleCapture() {
@@ -873,7 +911,11 @@ function discardPendingCapture() {
               @open-session-chat="openHistorySessionChat"
             />
 
-            <SettingsSurface v-else @save="handleSaveSettings" />
+            <SettingsSurface
+              v-else
+              @save="handleSaveSettings"
+              @shortcut-recording-change="handleShortcutRecordingChange"
+            />
           </Transition>
         </div>
       </div>

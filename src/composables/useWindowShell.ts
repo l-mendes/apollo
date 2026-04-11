@@ -239,6 +239,18 @@ export async function syncAppWindowAppearance(): Promise<void> {
   }
 }
 
+export async function revealCurrentWindow(): Promise<void> {
+  try {
+    const window = getCurrentWindow();
+
+    await window.show();
+    await window.unminimize();
+    await window.setFocus();
+  } catch {
+    // noop in web mode
+  }
+}
+
 export async function openAppWindow(surface: AppSurface): Promise<void> {
   try {
     const appWindow = await resolveAppWindow(surface);

@@ -38,6 +38,9 @@ const currentWindowMock = {
   emitTo: mocks.emitToMock,
   listen: mocks.listenMock,
   onCloseRequested: mocks.onCloseRequestedMock,
+  show: mocks.showMock,
+  unminimize: mocks.unminimizeMock,
+  setFocus: mocks.focusMock,
   hide: mocks.hideMock,
   setAlwaysOnTop: mocks.setAlwaysOnTopMock,
   setDecorations: mocks.setDecorationsMock,
@@ -114,6 +117,7 @@ import {
   openAppWindow,
   openResponseWindow,
   openSelectionWindow,
+  revealCurrentWindow,
   syncAppWindowAppearance,
   syncTrayWindowAppearance
 } from "@/composables/useWindowShell";
@@ -278,6 +282,14 @@ describe("useWindowShell", () => {
     expect(mocks.setSkipTaskbarMock).toHaveBeenCalled();
     expect(mocks.setSizeMock).toHaveBeenCalled();
     expect(mocks.setMinSizeMock).toHaveBeenCalled();
+  });
+
+  it("reveals and focuses the current app window", async () => {
+    await revealCurrentWindow();
+
+    expect(mocks.showMock).toHaveBeenCalled();
+    expect(mocks.unminimizeMock).toHaveBeenCalled();
+    expect(mocks.focusMock).toHaveBeenCalled();
   });
 
   it("intercepts close requests to hide the app window instead of destroying it", async () => {

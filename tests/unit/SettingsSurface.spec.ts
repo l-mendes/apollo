@@ -71,6 +71,17 @@ function readySettings(
   };
 }
 
+async function openSettingsContext(
+  wrapper: ReturnType<typeof mount>,
+  label: string
+) {
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text().includes(label))
+    ?.trigger("click");
+  await nextTick();
+}
+
 describe("SettingsSurface", () => {
   it("renders the loading state while preferences are fetched", () => {
     const { wrapper } = mountSettingsSurface();
@@ -80,7 +91,7 @@ describe("SettingsSurface", () => {
     );
   });
 
-  it("updates the settings draft in the store and emits save from the productive form", async () => {
+  it("updates the settings draft in the store from the productive form", async () => {
     const { store, wrapper } = mountSettingsSurface();
 
     store.commit("patchSettingsState", readySettings());
@@ -91,12 +102,10 @@ describe("SettingsSurface", () => {
       .findAll("button")
       .find((button) => button.text().includes("High"))
       ?.trigger("click");
-    await wrapper.find("button").trigger("click");
 
     expect(wrapper.find('[data-testid="settings-ready"]').exists()).toBe(true);
     expect(store.state.settings.draft?.base_prompt).toBe("Updated prompt");
     expect(store.state.settings.draft?.reasoning_effort).toBe("high");
-    expect(wrapper.emitted("save")).toHaveLength(1);
   });
 
   it("captures shortcut accelerators from pressed keys", async () => {
@@ -104,6 +113,7 @@ describe("SettingsSurface", () => {
 
     store.commit("patchSettingsState", readySettings());
     await nextTick();
+    await openSettingsContext(wrapper, "Atalhos");
 
     const shortcutRecorder = wrapper.find('[data-testid="shortcut-recorder"]');
 
@@ -145,6 +155,7 @@ describe("SettingsSurface", () => {
       ])
     );
     await nextTick();
+    await openSettingsContext(wrapper, "Atalhos");
 
     const shortcutRecorders = wrapper.findAll(
       '[data-testid="shortcut-recorder"]'
@@ -166,6 +177,7 @@ describe("SettingsSurface", () => {
 
     store.commit("patchSettingsState", readySettings());
     await nextTick();
+    await openSettingsContext(wrapper, "Atalhos");
 
     const shortcutRecorder = wrapper.find('[data-testid="shortcut-recorder"]');
 
@@ -199,6 +211,7 @@ describe("SettingsSurface", () => {
       ])
     );
     await nextTick();
+    await openSettingsContext(wrapper, "Atalhos");
 
     const shortcutRecorders = wrapper.findAll(
       '[data-testid="shortcut-recorder"]'
@@ -215,10 +228,10 @@ describe("SettingsSurface", () => {
     );
     expect(
       wrapper.find('[data-testid="shortcut-validation-1"]').text()
-    ).toContain("Capturar tela");
+    ).toContain("Capturar Tela");
   });
 
-  it("blocks saving when persisted shortcut rows are duplicated", async () => {
+  it("shows shortcut conflicts without exposing a manual save button", async () => {
     const { store, wrapper } = mountSettingsSurface();
 
     store.commit(
@@ -229,10 +242,60 @@ describe("SettingsSurface", () => {
       ])
     );
     await nextTick();
+    await openSettingsContext(wrapper, "Atalhos");
 
     expect(
       wrapper.find('[data-testid="shortcut-conflict-summary"]').exists()
     ).toBe(true);
-    expect(wrapper.find("button").attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).not.toContain("Salvar configuracoes");
+  });
+
+  it("groups settings by context and renders friendly shortcut labels", async () => {
+    const { store, wrapper } = mountSettingsSurface();
+
+    store.commit(
+      "patchSettingsState",
+      readySettings([
+        shortcut("capture_screen", "CmdOrCtrl+Shift+A"),
+        shortcut("open_settings", "CmdOrCtrl+,"),
+        shortcut("open_history", "CmdOrCtrl+H")
+      ])
+    );
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="settings-context-providers"]').exists()
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="settings-ready"]').classes()).toContain(
+      "overflow-hidden"
+    );
+    expect(
+      wrapper.find('[aria-label="Contextos de configuracao"]').classes()
+    ).toContain("border-r");
+    expect(
+      wrapper.find('[data-testid="settings-context-providers"]').classes()
+    ).toContain("overflow-y-auto");
+    expect(wrapper.text()).toContain("Provedor");
+    expect(wrapper.text()).not.toContain("Idioma da Aplicacao");
+
+    await openSettingsContext(wrapper, "Idioma");
+    expect(
+      wrapper.find('[data-testid="settings-context-language"]').exists()
+    ).toBe(true);
+    expect(wrapper.text()).toContain("Idioma da Aplicacao");
+
+    await openSettingsContext(wrapper, "Atalhos");
+    expect(
+      wrapper.find('[data-testid="settings-context-shortcuts"]').exists()
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="shortcut-label-0"]').text()).toBe(
+      "Capturar Tela"
+    );
+    expect(wrapper.find('[data-testid="shortcut-label-1"]').text()).toBe(
+      "Abrir Configuracoes"
+    );
+    expect(wrapper.find('[data-testid="shortcut-label-2"]').text()).toBe(
+      "Abrir Historico"
+    );
   });
 });

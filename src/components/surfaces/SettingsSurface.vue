@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { Globe, Terminal } from "lucide-vue-next";
+import { Bot, Globe, Keyboard, Languages, Terminal } from "lucide-vue-next";
 import { computed, onBeforeUnmount, ref } from "vue";
 
 import {
   PROVIDER_OPTIONS,
   cloneSettings,
-  providerLabel,
   type ProviderModel,
   type ProviderKind,
   type ReasoningEffort,
@@ -14,7 +13,6 @@ import {
 import { useApolloStore } from "@/store/apollo";
 
 const emit = defineEmits<{
-  save: [];
   "shortcut-recording-change": [recording: boolean];
 }>();
 
@@ -24,7 +22,6 @@ const loading = computed(
   () =>
     store.state.settings.loading || store.state.settings.providerCatalogLoading
 );
-const saving = computed(() => store.state.settings.saving);
 const errorText = computed(
   () =>
     (store.getters.settingsPanelErrorText as string | null) ??
@@ -32,11 +29,11 @@ const errorText = computed(
 );
 const settings = computed(() => store.state.settings.draft);
 const modelsByProvider = computed(() => store.state.settings.providerCatalog);
-const hasUnsavedChanges = computed(
-  () => store.getters.hasUnsavedSettings as boolean
-);
+type SettingsContext = "providers" | "language" | "shortcuts";
+
 const recordingShortcutIndex = ref<number | null>(null);
 const shortcutCaptureErrors = ref<Record<number, string>>({});
+const activeSettingsContext = ref<SettingsContext>("providers");
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -180,6 +177,28 @@ const REASONING_EFFORT_OPTIONS: Array<{
   }
 ];
 
+const SETTINGS_CONTEXTS: Array<{
+  id: SettingsContext;
+  label: string;
+  icon: typeof Bot;
+}> = [
+  {
+    id: "providers",
+    label: "Provedores de IA",
+    icon: Bot
+  },
+  {
+    id: "language",
+    label: "Idioma",
+    icon: Languages
+  },
+  {
+    id: "shortcuts",
+    label: "Atalhos",
+    icon: Keyboard
+  }
+];
+
 const MODIFIER_KEYS = new Set([
   "Alt",
   "Control",
@@ -199,9 +218,9 @@ const SPECIAL_KEY_LABELS: Record<string, string> = {
 };
 
 const SHORTCUT_ACTION_LABELS: Record<string, string> = {
-  capture_screen: "Capturar tela",
-  open_settings: "Abrir configuracoes",
-  open_history: "Abrir historico"
+  capture_screen: "Capturar Tela",
+  open_settings: "Abrir Configuracoes",
+  open_history: "Abrir Historico"
 };
 
 const MODIFIER_ALIASES: Record<string, string> = {
@@ -219,11 +238,7 @@ const MODIFIER_ALIASES: Record<string, string> = {
 
 const MODIFIER_ORDER = ["Cmd", "Ctrl", "Shift", "Alt"];
 
-function changeShortcutValue(
-  index: number,
-  field: "action" | "accelerator",
-  value: string
-) {
+function changeShortcutAccelerator(index: number, accelerator: string) {
   if (!settings.value) {
     return;
   }
@@ -231,7 +246,7 @@ function changeShortcutValue(
   const nextSettings = cloneSettings(settings.value);
   nextSettings.shortcuts[index] = {
     ...nextSettings.shortcuts[index],
-    [field]: value
+    accelerator
   };
 
   updateDraft(nextSettings);
@@ -428,7 +443,7 @@ function handleShortcutRecorderKeydown(index: number, event: KeyboardEvent) {
     return;
   }
 
-  changeShortcutValue(index, "accelerator", accelerator);
+  changeShortcutAccelerator(index, accelerator);
   setShortcutCaptureError(index, null);
   stopShortcutRecording(index);
 }
@@ -511,260 +526,328 @@ onBeforeUnmount(() => {
     {{ errorText ?? "Nao foi possivel carregar as configuracoes atuais." }}
   </div>
 
-  <div v-else class="space-y-6" data-testid="settings-ready">
-    <div class="flex items-center justify-between">
-      <span
-        class="rounded-full border px-3 py-1 text-xs"
-        :class="
-          hasUnsavedChanges
-            ? 'border-amber-300/30 bg-amber-300/10 text-amber-50'
-            : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'
-        "
-      >
-        {{ hasUnsavedChanges ? "Alteracoes locais" : "Sincronizado" }}
-      </span>
+  <div
+    v-else
+    class="flex h-full min-h-0 overflow-hidden"
+    data-testid="settings-ready"
+  >
+    <aside
+      class="h-full w-60 shrink-0 border-r border-apollo-app-border px-3 py-4 space-y-2"
+      aria-label="Contextos de configuracao"
+    >
       <button
-        class="rounded-lg bg-apollo-app-accent px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-apollo-app-hover disabled:text-slate-400"
-        type="button"
-        :disabled="saving || hasShortcutValidationErrors"
-        :title="
-          hasShortcutValidationErrors
-            ? 'Resolva os conflitos de atalhos antes de salvar.'
-            : undefined
+        v-for="context in SETTINGS_CONTEXTS"
+        :key="context.id"
+        class="flex h-9 w-full items-center gap-3 rounded-md border px-3 text-left text-sm font-semibold transition last:mb-0"
+        :class="
+          activeSettingsContext === context.id
+            ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
+            : 'border-transparent text-white hover:bg-apollo-app-hover'
         "
-        @click="emit('save')"
+        type="button"
+        @click="activeSettingsContext = context.id"
       >
-        {{ saving ? "Salvando..." : "Salvar configuracoes" }}
+        <component
+          :is="context.icon"
+          class="h-4 w-4 shrink-0"
+          :class="
+            activeSettingsContext === context.id
+              ? 'text-apollo-app-accent'
+              : 'text-slate-300'
+          "
+        />
+        <span class="truncate">{{ context.label }}</span>
       </button>
-    </div>
+    </aside>
 
-    <div
-      v-if="errorText"
-      class="rounded-xl border border-amber-300/25 bg-amber-300/10 px-5 py-4 text-sm text-amber-50"
-    >
-      {{ errorText }}
-    </div>
-
-    <div
-      class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
-    >
-      <p class="text-sm font-semibold text-white">Fonte de IA</p>
-      <p class="mt-1 text-sm text-apollo-app-muted">
-        Escolha o provider para todas as analises deste workspace.
-      </p>
-
-      <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        <button
-          v-for="provider in PROVIDER_OPTIONS"
-          :key="provider.kind"
-          class="flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition"
-          :class="
-            settings.preferred_provider === provider.kind
-              ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
-              : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
-          "
-          type="button"
-          @click="changeProvider(provider.kind)"
-        >
-          <Globe v-if="provider.channel === 'Http'" class="h-5 w-5 shrink-0" />
-          <Terminal v-else class="h-5 w-5 shrink-0" />
-          <span class="text-sm font-medium leading-tight">{{
-            provider.label
-          }}</span>
-          <span
-            class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase leading-none"
-            :class="
-              provider.channel === 'Http'
-                ? 'bg-sky-400/15 text-sky-300'
-                : 'bg-violet-400/15 text-violet-300'
-            "
-          >
-            {{ provider.channel === "Http" ? "HTTP" : "CLI" }}
-          </span>
-        </button>
-      </div>
-    </div>
-
-    <div
-      class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
-    >
-      <p class="text-sm font-semibold text-white">Modelo</p>
-      <p class="mt-1 text-sm text-apollo-app-muted">
-        Modelo preferido para o provider selecionado.
-      </p>
-      <div class="mt-5">
-        <select
-          class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-          :value="settings.preferred_model"
-          @change="changeModel(($event.target as HTMLSelectElement).value)"
-        >
-          <option
-            v-for="model in availableModels"
-            :key="model.model_key"
-            :value="model.model_key"
-          >
-            {{ model.display_name }}
-          </option>
-          <option v-if="availableModels.length === 0" value="">
-            Nenhum modelo disponivel
-          </option>
-        </select>
-      </div>
-    </div>
-
-    <div
-      class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
-    >
-      <p class="text-sm font-semibold text-white">Reasoning</p>
-      <p class="mt-1 text-sm text-apollo-app-muted">
-        Esforco de raciocinio usado por providers compativeis. Providers sem
-        suporte ignoram esta preferencia.
-      </p>
-      <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <button
-          v-for="option in REASONING_EFFORT_OPTIONS"
-          :key="option.value"
-          class="rounded-xl border p-4 text-left transition"
-          :class="
-            settings.reasoning_effort === option.value
-              ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
-              : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
-          "
-          type="button"
-          @click="changeReasoningEffort(option.value)"
-        >
-          <span class="text-sm font-semibold">{{ option.label }}</span>
-          <span class="mt-2 block text-xs leading-5 text-apollo-app-muted">{{
-            option.description
-          }}</span>
-        </button>
-      </div>
-    </div>
-
-    <div
-      class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
-    >
-      <p class="text-sm font-semibold text-white">Prompt Base</p>
-      <p class="mt-1 text-sm text-apollo-app-muted">
-        O prompt base e usado como contexto principal em todas as analises.
-      </p>
-      <textarea
-        class="mt-4 min-h-40 w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-apollo-app-accent"
-        :value="settings.base_prompt"
-        @input="changeBasePrompt(($event.target as HTMLTextAreaElement).value)"
-      />
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="min-h-0 flex-1 overflow-hidden">
       <div
-        class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+        v-if="errorText"
+        class="mx-6 mt-5 rounded-xl border border-amber-300/25 bg-amber-300/10 px-5 py-4 text-sm text-amber-50"
       >
-        <p class="text-sm font-semibold text-white">Idioma de Entrada (OCR)</p>
-        <p class="mt-1 text-sm text-apollo-app-muted">
-          Idioma do texto que sera extraido da imagem pelo Tesseract.
-        </p>
-        <div class="mt-4">
-          <select
-            class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-            :value="settings.ocr_language"
-            @change="
-              changeOcrLanguage(($event.target as HTMLSelectElement).value)
-            "
+        {{ errorText }}
+      </div>
+
+      <section
+        v-if="activeSettingsContext === 'providers'"
+        class="h-full min-h-0 space-y-4 overflow-y-auto px-6 py-5"
+        data-testid="settings-context-providers"
+      >
+        <div>
+          <p class="text-2xl font-semibold text-white">Provedores de IA</p>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+            Conecte o Apollo a providers remotos, modelos locais e prompts de
+            analise.
+          </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+        >
+          <p class="text-sm font-semibold text-white">Provedor</p>
+          <p class="mt-1 text-sm text-apollo-app-muted">
+            Escolha o provider para todas as analises deste workspace.
+          </p>
+
+          <div class="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <button
+              v-for="provider in PROVIDER_OPTIONS"
+              :key="provider.kind"
+              class="flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition"
+              :class="
+                settings.preferred_provider === provider.kind
+                  ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
+                  : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
+              "
+              type="button"
+              @click="changeProvider(provider.kind)"
+            >
+              <Globe
+                v-if="provider.channel === 'Http'"
+                class="h-5 w-5 shrink-0"
+              />
+              <Terminal v-else class="h-5 w-5 shrink-0" />
+              <span class="text-sm font-medium leading-tight">{{
+                provider.label
+              }}</span>
+              <span
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase leading-none"
+                :class="
+                  provider.channel === 'Http'
+                    ? 'bg-sky-400/15 text-sky-300'
+                    : 'bg-violet-400/15 text-violet-300'
+                "
+              >
+                {{ provider.channel === "Http" ? "HTTP" : "CLI" }}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+        >
+          <p class="text-sm font-semibold text-white">Modelo</p>
+          <p class="mt-1 text-sm text-apollo-app-muted">
+            Modelo preferido para o provider selecionado.
+          </p>
+          <div class="mt-5">
+            <select
+              class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
+              :value="settings.preferred_model"
+              @change="changeModel(($event.target as HTMLSelectElement).value)"
+            >
+              <option
+                v-for="model in availableModels"
+                :key="model.model_key"
+                :value="model.model_key"
+              >
+                {{ model.display_name }}
+              </option>
+              <option v-if="availableModels.length === 0" value="">
+                Nenhum modelo disponivel
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+        >
+          <p class="text-sm font-semibold text-white">Reasoning</p>
+          <p class="mt-1 text-sm text-apollo-app-muted">
+            Esforco de raciocinio usado por providers compativeis. Providers sem
+            suporte ignoram esta preferencia.
+          </p>
+          <div
+            class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
           >
-            <option
-              v-for="option in OCR_LANGUAGE_OPTIONS"
+            <button
+              v-for="option in REASONING_EFFORT_OPTIONS"
               :key="option.value"
-              :value="option.value"
+              class="rounded-xl border p-4 text-left transition"
+              :class="
+                settings.reasoning_effort === option.value
+                  ? 'border-apollo-app-accent bg-apollo-app-selected text-white'
+                  : 'border-apollo-app-border bg-apollo-app-shell text-apollo-app-muted hover:border-apollo-app-selectedBorder hover:text-white'
+              "
+              type="button"
+              @click="changeReasoningEffort(option.value)"
             >
-              {{ option.label }}
-            </option>
-          </select>
+              <span class="text-sm font-semibold">{{ option.label }}</span>
+              <span
+                class="mt-2 block text-xs leading-5 text-apollo-app-muted"
+                >{{ option.description }}</span
+              >
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div
-        class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
-      >
-        <p class="text-sm font-semibold text-white">Idioma de Saida (IA)</p>
-        <p class="mt-1 text-sm text-apollo-app-muted">
-          A IA sempre respondera neste idioma, independente do idioma da
-          entrada.
-        </p>
-        <div class="mt-4">
-          <select
-            class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
-            :value="settings.output_language"
-            @change="
-              changeOutputLanguage(($event.target as HTMLSelectElement).value)
+        <div
+          class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+        >
+          <p class="text-sm font-semibold text-white">Prompt Base</p>
+          <p class="mt-1 text-sm text-apollo-app-muted">
+            O prompt base e usado como contexto principal em todas as analises.
+          </p>
+          <textarea
+            class="mt-4 min-h-40 w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-apollo-app-accent"
+            :value="settings.base_prompt"
+            @input="
+              changeBasePrompt(($event.target as HTMLTextAreaElement).value)
             "
-          >
-            <option
-              v-for="lang in OUTPUT_LANGUAGE_OPTIONS"
-              :key="lang"
-              :value="lang"
-            >
-              {{ lang }}
-            </option>
-          </select>
+          />
         </div>
-      </div>
-    </div>
+      </section>
 
-    <div>
-      <p class="text-lg font-semibold text-white">Atalhos de Teclado</p>
-      <p class="mt-2 text-sm text-apollo-app-muted">
-        Personalize os atalhos para corresponder ao seu fluxo de trabalho.
-      </p>
-      <p
-        v-if="hasShortcutValidationErrors"
-        class="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-        data-testid="shortcut-conflict-summary"
+      <section
+        v-else-if="activeSettingsContext === 'language'"
+        class="h-full min-h-0 space-y-4 overflow-y-auto px-6 py-5"
+        data-testid="settings-context-language"
       >
-        Resolva os atalhos duplicados antes de salvar as configuracoes.
-      </p>
+        <div>
+          <p class="text-2xl font-semibold text-white">Idioma</p>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+            Defina os idiomas usados no OCR, nas respostas e futuramente na
+            interface.
+          </p>
+        </div>
 
-      <div class="mt-5 space-y-3">
+        <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div
+            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+          >
+            <p class="text-sm font-semibold text-white">Idioma de Entrada</p>
+            <p class="mt-1 text-sm text-apollo-app-muted">
+              Idioma do texto que sera extraido da imagem pelo Tesseract.
+            </p>
+            <div class="mt-4">
+              <select
+                class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
+                :value="settings.ocr_language"
+                @change="
+                  changeOcrLanguage(($event.target as HTMLSelectElement).value)
+                "
+              >
+                <option
+                  v-for="option in OCR_LANGUAGE_OPTIONS"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div
+            class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
+          >
+            <p class="text-sm font-semibold text-white">Idioma de Saida</p>
+            <p class="mt-1 text-sm text-apollo-app-muted">
+              A IA sempre respondera neste idioma, independente do idioma da
+              entrada.
+            </p>
+            <div class="mt-4">
+              <select
+                class="w-full rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-sm text-white outline-none transition focus:border-apollo-app-accent"
+                :value="settings.output_language"
+                @change="
+                  changeOutputLanguage(
+                    ($event.target as HTMLSelectElement).value
+                  )
+                "
+              >
+                <option
+                  v-for="lang in OUTPUT_LANGUAGE_OPTIONS"
+                  :key="lang"
+                  :value="lang"
+                >
+                  {{ lang }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="rounded-xl border border-dashed border-apollo-app-border bg-apollo-app-card/60 p-6"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-white">
+                Idioma da Aplicacao
+              </p>
+              <p class="mt-1 text-sm text-apollo-app-muted">
+                Escolha o idioma da interface do Apollo.
+              </p>
+            </div>
+            <span
+              class="rounded-full border border-apollo-app-border px-3 py-1 text-xs text-apollo-app-muted"
+            >
+              Futuro
+            </span>
+          </div>
+          <button
+            class="mt-4 w-full cursor-not-allowed rounded-lg border border-apollo-app-border bg-apollo-app-shell px-4 py-2.5 text-left text-sm text-apollo-app-muted"
+            type="button"
+            disabled
+          >
+            Seguir idioma do sistema
+          </button>
+        </div>
+      </section>
+
+      <section
+        v-else
+        class="h-full min-h-0 space-y-4 overflow-y-auto px-6 py-5"
+        data-testid="settings-context-shortcuts"
+      >
+        <div>
+          <p class="text-2xl font-semibold text-white">Atalhos</p>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+            Personalize os atalhos para corresponder ao seu fluxo de trabalho.
+          </p>
+          <p
+            v-if="hasShortcutValidationErrors"
+            class="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+            data-testid="shortcut-conflict-summary"
+          >
+            Resolva os atalhos duplicados antes de salvar as configuracoes.
+          </p>
+        </div>
+
         <div
           v-for="(shortcut, index) in settings.shortcuts"
           :key="`${shortcut.action}-${index}`"
           class="rounded-xl border border-apollo-app-border bg-apollo-app-card p-6"
         >
-          <div class="flex items-start justify-between gap-4">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-3">
-                <input
-                  class="min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-white outline-none placeholder:text-apollo-app-muted"
-                  :value="shortcut.action"
-                  placeholder="Nome do atalho"
-                  @input="
-                    changeShortcutValue(
-                      index,
-                      'action',
-                      ($event.target as HTMLInputElement).value
-                    )
-                  "
-                />
-                <label
-                  class="inline-flex shrink-0 items-center gap-2 text-xs text-apollo-app-muted"
-                >
-                  <input
-                    class="h-4 w-4 rounded border-apollo-app-border bg-apollo-app-shell"
-                    type="checkbox"
-                    :checked="shortcut.enabled"
-                    @change="
-                      changeShortcutEnabled(
-                        index,
-                        ($event.target as HTMLInputElement).checked
-                      )
-                    "
-                  />
-                  Ativo
-                </label>
-              </div>
-              <p class="mt-1 text-sm text-apollo-app-muted">
-                {{ providerLabel(settings.preferred_provider) }} workflow
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0">
+              <p
+                class="text-base font-semibold text-white"
+                :data-testid="`shortcut-label-${index}`"
+              >
+                {{ shortcutActionLabel(shortcut.action) }}
               </p>
+              <p class="mt-1 text-sm text-apollo-app-muted">Atalho do Apollo</p>
             </div>
+            <label
+              class="inline-flex shrink-0 items-center gap-2 text-xs text-apollo-app-muted"
+            >
+              <input
+                class="h-4 w-4 rounded border-apollo-app-border bg-apollo-app-shell"
+                type="checkbox"
+                :checked="shortcut.enabled"
+                @change="
+                  changeShortcutEnabled(
+                    index,
+                    ($event.target as HTMLInputElement).checked
+                  )
+                "
+              />
+              Ativo
+            </label>
           </div>
 
           <div
@@ -822,7 +905,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>

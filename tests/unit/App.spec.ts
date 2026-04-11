@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   listHistoryMock: vi.fn(),
   fetchBootstrapSnapshotMock: vi.fn(),
   fetchHealthStatusMock: vi.fn(),
+  saveSettingsMock: vi.fn(),
+  requestQuitMock: vi.fn(),
   revealCurrentWindowMock: vi.fn(),
   shortcutActionHandler: null as null | ((action: string) => void)
 }));
@@ -37,7 +39,7 @@ vi.mock("@/composables/useApolloDesktop", () => ({
   applyGlobalShortcuts: mocks.applyGlobalShortcutsMock,
   captureScreenRegion: vi.fn(),
   clearHistory: vi.fn(),
-  cloneSettings: (settings: unknown) => structuredClone(settings),
+  cloneSettings: (settings: unknown) => JSON.parse(JSON.stringify(settings)),
   commandErrorMessage: (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback,
   createEmptyProviderCatalog: () => ({
@@ -56,12 +58,13 @@ vi.mock("@/composables/useApolloDesktop", () => ({
   loadSettings: mocks.loadSettingsMock,
   providerLabel: () => "OpenAI",
   runOcrOnImage: vi.fn(),
-  saveSettings: vi.fn()
+  saveSettings: mocks.saveSettingsMock
 }));
 
 vi.mock("@/composables/useDesktopCapabilities", () => ({
   fetchBootstrapSnapshot: mocks.fetchBootstrapSnapshotMock,
-  fetchHealthStatus: mocks.fetchHealthStatusMock
+  fetchHealthStatus: mocks.fetchHealthStatusMock,
+  requestQuit: mocks.requestQuitMock
 }));
 
 vi.mock("@/composables/useWindowShell", () => ({
@@ -103,6 +106,8 @@ describe("App", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/?surface=settings");
     mocks.applyGlobalShortcutsMock.mockReset().mockResolvedValue(undefined);
+    mocks.saveSettingsMock.mockReset().mockResolvedValue(undefined);
+    mocks.requestQuitMock.mockReset().mockResolvedValue(undefined);
     mocks.revealCurrentWindowMock.mockReset().mockResolvedValue(undefined);
     mocks.shortcutActionHandler = null;
     mocks.loadSettingsMock.mockReset().mockResolvedValue({
@@ -144,6 +149,12 @@ describe("App", () => {
     });
     await flushPromises();
 
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Atalhos"))
+      ?.trigger("click");
+    await nextTick();
+
     const shortcutRecorder = wrapper.find('[data-testid="shortcut-recorder"]');
     await shortcutRecorder.trigger("click");
     await flushPromises();
@@ -172,5 +183,70 @@ describe("App", () => {
 
     expect(store.state.shell.activeSurface).toBe("history");
     expect(mocks.revealCurrentWindowMock).toHaveBeenCalled();
+  });
+
+  it("shows the back action and quit button in the top bar while settings is active", async () => {
+    const store = createApolloStore();
+    const wrapper = mount(App, {
+      global: {
+        plugins: [[store, apolloStoreKey]]
+      }
+    });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="settings-back-button"]').exists()).toBe(
+      true
+    );
+    expect(wrapper.find('[data-testid="quit-button"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="main-navigation"]').exists()).toBe(
+      false
+    );
+
+    await wrapper.find('[data-testid="settings-back-button"]').trigger("click");
+    await nextTick();
+
+    expect(store.state.shell.activeSurface).toBe("home");
+    expect(wrapper.find('[data-testid="main-navigation"]').exists()).toBe(true);
+  });
+
+  it("requests application quit from the top bar", async () => {
+    const store = createApolloStore();
+    const wrapper = mount(App, {
+      global: {
+        plugins: [[store, apolloStoreKey]]
+      }
+    });
+    await flushPromises();
+
+    await wrapper.find('[data-testid="quit-button"]').trigger("click");
+    await nextTick();
+
+    expect(mocks.requestQuitMock).toHaveBeenCalled();
+  });
+
+  it("persists settings automatically after draft changes", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = createApolloStore();
+      const wrapper = mount(App, {
+        global: {
+          plugins: [[store, apolloStoreKey]]
+        }
+      });
+      await flushPromises();
+
+      await wrapper.find("textarea").setValue("Updated prompt");
+      await nextTick();
+      vi.advanceTimersByTime(600);
+      await flushPromises();
+
+      expect(mocks.saveSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          base_prompt: "Updated prompt"
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

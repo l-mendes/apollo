@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, History, House, Settings2 } from "lucide-vue-next";
+import { History, House, Settings2 } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 
 import { buildChatMessages } from "@/components/chat/chatMessages";
@@ -56,6 +56,7 @@ import {
 import {
   fetchBootstrapSnapshot,
   fetchHealthStatus,
+  requestQuit,
   type HealthStatus
 } from "@/composables/useDesktopCapabilities";
 import { useApolloStore } from "@/store/apollo";
@@ -84,6 +85,7 @@ let unlistenPreviewConfirm: (() => void) | null = null;
 let unlistenPreviewCancel: (() => void) | null = null;
 let unlistenResponseConversationSync: (() => void) | null = null;
 let shortcutsSuppressedForRecording = false;
+let autoSaveSettingsTimer: ReturnType<typeof setTimeout> | null = null;
 
 const activeSurface = computed(() => store.state.shell.activeSurface);
 const versionText = computed(() => store.getters.versionText as string);
@@ -191,6 +193,11 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  if (autoSaveSettingsTimer) {
+    clearTimeout(autoSaveSettingsTimer);
+    autoSaveSettingsTimer = null;
+  }
+
   unlistenSurfaceNavigation?.();
   unlistenCloseRequest?.();
   unlistenOcrResult?.();
@@ -225,6 +232,14 @@ watch(activeSurface, (surface, previousSurface) => {
     void emitSurfaceChanged(surface);
   }
 });
+
+watch(
+  () => store.state.settings.draft,
+  () => {
+    scheduleAutoSaveSettings();
+  },
+  { deep: true }
+);
 
 async function loadSystemStatus() {
   try {
@@ -685,22 +700,29 @@ async function handleSaveSettings() {
     return;
   }
 
+  const draftSnapshot = cloneSettings(store.state.settings.draft);
+
   store.commit("patchSettingsState", {
     saving: true,
     error: null
   });
 
   try {
-    await saveSettings(store.state.settings.draft);
+    await saveSettings(draftSnapshot);
 
-    const savedSettings = cloneSettings(store.state.settings.draft);
+    const currentDraft = store.state.settings.draft;
+    const draftChangedDuringSave =
+      currentDraft &&
+      JSON.stringify(currentDraft) !== JSON.stringify(draftSnapshot);
     store.commit("patchSettingsState", {
-      saved: savedSettings,
-      draft: cloneSettings(savedSettings)
+      saved: draftSnapshot,
+      draft: draftChangedDuringSave
+        ? currentDraft
+        : cloneSettings(draftSnapshot)
     });
 
     if (!shortcutsSuppressedForRecording) {
-      void applyGlobalShortcuts(savedSettings.shortcuts).catch(() => {});
+      void applyGlobalShortcuts(draftSnapshot.shortcuts).catch(() => {});
     }
   } catch (error) {
     store.commit("patchSettingsState", {
@@ -713,7 +735,103 @@ async function handleSaveSettings() {
     store.commit("patchSettingsState", {
       saving: false
     });
+
+    if (
+      store.state.settings.saved &&
+      store.state.settings.draft &&
+      JSON.stringify(store.state.settings.saved) !==
+        JSON.stringify(store.state.settings.draft)
+    ) {
+      scheduleAutoSaveSettings();
+    }
   }
+}
+
+function hasDuplicatedShortcutAccelerators(settings: UserSettings): boolean {
+  const accelerators = new Set<string>();
+
+  for (const shortcut of settings.shortcuts) {
+    const accelerator = canonicalShortcutAccelerator(shortcut.accelerator);
+
+    if (!accelerator) {
+      continue;
+    }
+
+    if (accelerators.has(accelerator)) {
+      return true;
+    }
+
+    accelerators.add(accelerator);
+  }
+
+  return false;
+}
+
+function canonicalShortcutAccelerator(accelerator: string): string | null {
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  const modifierAliases: Record<string, string> = {
+    alt: "Alt",
+    cmd: "Cmd",
+    command: "Cmd",
+    commandorcontrol: isMac ? "Cmd" : "Ctrl",
+    control: "Ctrl",
+    ctrl: "Ctrl",
+    cmdorctrl: isMac ? "Cmd" : "Ctrl",
+    meta: "Cmd",
+    option: "Alt",
+    shift: "Shift"
+  };
+  const modifierOrder = ["Cmd", "Ctrl", "Shift", "Alt"];
+  const modifiers = new Set<string>();
+  let mainKey = "";
+
+  for (const part of accelerator.split("+")) {
+    const trimmed = part.trim();
+    const alias = modifierAliases[trimmed.toLowerCase()];
+
+    if (alias) {
+      modifiers.add(alias);
+    } else if (trimmed) {
+      mainKey = trimmed.toUpperCase();
+    }
+  }
+
+  if (!mainKey) {
+    return null;
+  }
+
+  return [
+    ...modifierOrder.filter((modifier) => modifiers.has(modifier)),
+    mainKey
+  ].join("+");
+}
+
+function scheduleAutoSaveSettings() {
+  if (autoSaveSettingsTimer) {
+    clearTimeout(autoSaveSettingsTimer);
+    autoSaveSettingsTimer = null;
+  }
+
+  const draft = store.state.settings.draft;
+  const saved = store.state.settings.saved;
+
+  if (
+    !draft ||
+    !saved ||
+    store.state.settings.loading ||
+    store.state.settings.saving ||
+    hasDuplicatedShortcutAccelerators(draft) ||
+    JSON.stringify(draft) === JSON.stringify(saved)
+  ) {
+    return;
+  }
+
+  autoSaveSettingsTimer = setTimeout(() => {
+    autoSaveSettingsTimer = null;
+    void handleSaveSettings();
+  }, 600);
 }
 
 function activeShortcutBindings() {
@@ -730,6 +848,10 @@ function handleShortcutRecordingChange(recording: boolean) {
   void applyGlobalShortcuts(recording ? [] : activeShortcutBindings()).catch(
     () => {}
   );
+}
+
+function handleQuit() {
+  void requestQuit().catch(() => {});
 }
 
 async function handleCapture() {
@@ -850,75 +972,137 @@ function discardPendingCapture() {
 
 <template>
   <div
-    class="apollo-main-shell flex h-screen overflow-hidden bg-apollo-app-shell text-slate-50"
+    class="apollo-main-shell flex h-screen flex-col overflow-hidden bg-apollo-app-shell text-slate-50"
   >
-    <aside
-      class="flex w-60 shrink-0 flex-col border-r border-apollo-app-border bg-apollo-app-sidebar"
+    <header
+      class="flex h-14 shrink-0 items-center border-b border-apollo-app-border bg-apollo-app-sidebar px-5"
     >
       <button
-        class="flex items-center px-5 py-5 text-apollo-app-muted transition hover:text-white"
+        v-if="activeSurface === 'settings'"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-apollo-app-muted transition hover:bg-apollo-app-hover hover:text-white"
+        data-testid="settings-back-button"
         type="button"
+        aria-label="Voltar para home"
         @click="activateSurface('home')"
       >
-        <ArrowLeft class="h-5 w-5" />
+        <svg
+          class="h-5 w-5"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+        >
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
       </button>
 
-      <nav class="flex-1 space-y-1 px-3">
-        <button
-          v-for="section in sections"
-          :key="section.id"
-          class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm transition"
-          :class="
-            activeSurface === section.id
-              ? 'bg-apollo-app-selected font-medium text-white'
-              : 'text-apollo-app-muted hover:bg-apollo-app-hover hover:text-white'
-          "
-          type="button"
-          @click="activateSurface(section.id)"
-        >
-          <component :is="section.icon" class="h-5 w-5 shrink-0" />
-          {{ section.label }}
-        </button>
-      </nav>
-
-      <div
-        class="border-t border-apollo-app-border px-5 py-4 text-xs text-apollo-app-muted"
-      >
-        {{ versionText }}
-      </div>
-    </aside>
-
-    <main class="min-w-0 flex-1 overflow-y-auto bg-apollo-app-panel">
-      <div class="mx-auto max-w-4xl px-10 py-10">
-        <h1 class="text-2xl font-semibold text-white">
-          {{ sectionSummary.title }}
-        </h1>
-        <p class="mt-3 max-w-2xl text-sm leading-6 text-apollo-app-muted">
-          {{ sectionSummary.description }}
-        </p>
-
-        <div class="mt-8">
-          <Transition name="surface-float" mode="out-in">
-            <HomeSurface
-              v-if="activeSurface === 'home'"
-              @capture="handleCapture"
-            />
-
-            <HistorySurface
-              v-else-if="activeSurface === 'history'"
-              @clear-history="handleClearHistory"
-              @delete-session="handleDeleteHistorySession"
-              @open-session-chat="openHistorySessionChat"
-            />
-
-            <SettingsSurface
-              v-else
-              @save="handleSaveSettings"
-              @shortcut-recording-change="handleShortcutRecordingChange"
-            />
-          </Transition>
+      <template v-else>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-white">Apollo</p>
+          <p class="mt-1 text-xs text-apollo-app-muted">{{ versionText }}</p>
         </div>
-      </div>
+
+        <nav
+          class="ml-auto flex items-center gap-2 rounded-xl border border-apollo-app-border bg-apollo-app-shell p-1"
+          data-testid="main-navigation"
+          aria-label="Navegacao principal"
+        >
+          <button
+            v-for="section in sections"
+            :key="section.id"
+            class="flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition"
+            :class="
+              activeSurface === section.id
+                ? 'bg-apollo-app-selected font-medium text-white'
+                : 'text-apollo-app-muted hover:bg-apollo-app-hover hover:text-white'
+            "
+            type="button"
+            @click="activateSurface(section.id)"
+          >
+            <component :is="section.icon" class="h-5 w-5 shrink-0" />
+            {{ section.label }}
+          </button>
+        </nav>
+
+        <button
+          class="inline-flex h-9 items-center gap-2 rounded-lg border border-apollo-app-border bg-apollo-app-shell px-3 text-sm font-medium text-apollo-app-muted transition hover:border-apollo-app-selectedBorder hover:text-white ml-3"
+          data-testid="quit-button"
+          type="button"
+          aria-label="Sair do Apollo"
+          @click="handleQuit"
+        >
+          <svg
+            class="h-4 w-4"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+          <span>Sair</span>
+        </button>
+      </template>
+    </header>
+
+    <main class="min-w-0 flex-1 overflow-hidden bg-apollo-app-panel">
+      <Transition name="surface-float" mode="out-in">
+        <div
+          v-if="activeSurface === 'home'"
+          key="home"
+          class="h-full overflow-y-auto"
+        >
+          <div class="mx-auto max-w-6xl px-8 py-8">
+            <h1 class="text-2xl font-semibold text-white">
+              {{ sectionSummary.title }}
+            </h1>
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+              {{ sectionSummary.description }}
+            </p>
+
+            <div class="mt-8">
+              <HomeSurface @capture="handleCapture" />
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else-if="activeSurface === 'history'"
+          key="history"
+          class="h-full overflow-y-auto"
+        >
+          <div class="mx-auto max-w-6xl px-8 py-8">
+            <h1 class="text-2xl font-semibold text-white">
+              {{ sectionSummary.title }}
+            </h1>
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-apollo-app-muted">
+              {{ sectionSummary.description }}
+            </p>
+
+            <div class="mt-8">
+              <HistorySurface
+                @clear-history="handleClearHistory"
+                @delete-session="handleDeleteHistorySession"
+                @open-session-chat="openHistorySessionChat"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div v-else key="settings" class="h-full overflow-hidden">
+          <SettingsSurface
+            @shortcut-recording-change="handleShortcutRecordingChange"
+          />
+        </div>
+      </Transition>
     </main>
   </div>
 </template>
